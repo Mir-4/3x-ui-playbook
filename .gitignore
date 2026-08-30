@@ -1,0 +1,37 @@
+# Ansible generated files
+*.retry
+.ansible/
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+secrets/
+vault-password-file
+vault_password_file
+*.secret
+*.secrets
+inventory/
+
+# Private keys and certificates
+*.pem
+*.key
+id_rsa*
+id_ed25519*
+
+# Python tooling and caches
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+
+# Local logs and temporary files
+*.log
+*.tmp
+tmp/
+
+# Editors and operating systems
+.DS_Store
+.idea/
+.vscode/

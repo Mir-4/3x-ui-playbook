@@ -3,32 +3,8 @@
   become: true
 
   pre_tasks:
-    - name: Validate supported deployment target
-      ansible.builtin.assert:
-        that:
-          - ansible_facts.os_family == "Debian"
-          - >-
-            (ansible_distribution == "Debian" and ansible_distribution_major_version == "12") or
-            (ansible_distribution == "Ubuntu" and ansible_distribution_version == "24.04")
-        fail_msg: "This playbook supports Debian 12 and Ubuntu 24.04 only."
-
-    - name: Validate 3x-ui network inputs
-      ansible.builtin.assert:
-        that:
-          - xui_panel_domain is match('^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$')
-          - xui_reality_domain is match('^[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$')
-          - xui_panel_domain != xui_reality_domain
-          - xui_ssl_mode == "none"
-          - xui_nginx_listener_ports | map("string") | select("match", "^[1-9][0-9]{0,4}$") | list | length == xui_nginx_listener_ports | length
-          - xui_nginx_listener_ports | map("int") | max <= 65535
-          - xui_nginx_listener_ports | map("int") | unique | list | length == xui_nginx_listener_ports | length
-          - xui_nginx_path_segments | select("match", "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$") | list | length == xui_nginx_path_segments | length
-          - xui_xhttp_socket is match("^/")
-          - xui_panel_certificate_dir is match("^/")
-          - xui_reality_certificate_dir is match("^/")
-        fail_msg: >-
-          Configure distinct panel and REALITY domains, unique valid listener ports,
-          safe path segments, and absolute certificate and XHTTP socket paths.
+    - name: Validate deployment inputs
+      ansible.builtin.import_tasks: tasks/preflight.yaml
 
   handlers:
     - name: Validate nginx configuration

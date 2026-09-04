@@ -1,0 +1,181 @@
+---
+- name: Remove the legacy 3x-ui Nginx site
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /etc/nginx/sites-enabled/3x-ui.conf
+    - /etc/nginx/sites-available/3x-ui.conf
+  notify: nginx configuration changed
+
+- name: Read the Nginx stream marker
+  ansible.builtin.slurp:
+    src: "{{ xui_nginx_main_config_path }}"
+  register: xui_nginx_main_config_file
+  changed_when: false
+
+- name: Inspect the existing Nginx configuration
+  ansible.builtin.command:
+    cmd: nginx -T
+  register: xui_nginx_current_config
+  changed_when: false
+  failed_when: false
+
+- name: Require a valid existing Nginx configuration
+  ansible.builtin.assert:
+    that:
+      - xui_nginx_current_config.rc == 0
+    fail_msg: >-
+      Nginx configuration is invalid. Fix it before adding the 3x-ui files.
+
+- name: Reject conflicting Nginx configuration
+  ansible.builtin.assert:
+    that:
+      - >-
+        (xui_nginx_main_config_file.content | b64decode)
+        is search('BEGIN ANSIBLE MANAGED 3x-ui STREAM INCLUDE') or
+        (xui_nginx_current_config.stdout ~ xui_nginx_current_config.stderr)
+        is not search('(?:^|\n)\s*stream\s*\{')
+      - >-
+        (xui_nginx_main_config_file.content | b64decode)
+        is search('BEGIN ANSIBLE MANAGED 3x-ui STREAM INCLUDE') or
+        (xui_nginx_current_config.stdout ~ xui_nginx_current_config.stderr)
+        is not search('(?:^|\n)\s*listen\s+(?:\[::\]:)?443(?:\s|;)')
+      - >-
+        (xui_nginx_main_config_file.content | b64decode)
+        is search('BEGIN ANSIBLE MANAGED 3x-ui STREAM INCLUDE') or
+        (xui_nginx_current_config.stdout ~ xui_nginx_current_config.stderr)
+        is not search('server_name\s+[^;]*' ~ (xui_panel_domain | regex_escape))
+      - >-
+        (xui_nginx_main_config_file.content | b64decode)
+        is search('BEGIN ANSIBLE MANAGED 3x-ui STREAM INCLUDE') or
+        (xui_nginx_current_config.stdout ~ xui_nginx_current_config.stderr)
+        is not search('server_name\s+[^;]*' ~ (xui_reality_domain | regex_escape))
+      - xui_nginx_current_config.stderr is not search('conflicting server name')
+    fail_msg: >-
+      A non-project Nginx configuration already has a stream block, listens on
+      TCP 443, or claims a managed domain. Resolve the conflict first.
+
+- name: Require loopback proxy ports to be unused
+  ansible.builtin.wait_for:
+    host: 127.0.0.1
+    port: "{{ item }}"
+    state: stopped
+    timeout: 1
+  loop:
+    - "{{ xui_panel_proxy_port }}"
+    - "{{ xui_reality_proxy_port }}"
+  when: >-
+    (xui_nginx_main_config_file.content | b64decode)
+    is not search('BEGIN ANSIBLE MANAGED 3x-ui STREAM INCLUDE')
+
+- name: Check TLS material for both managed domains
+  ansible.builtin.stat:
+    path: "{{ item }}"
+  loop:
+    - "{{ xui_panel_certificate_dir }}/fullchain.pem"
+    - "{{ xui_panel_certificate_dir }}/privkey.pem"
+    - "{{ xui_reality_certificate_dir }}/fullchain.pem"
+    - "{{ xui_reality_certificate_dir }}/privkey.pem"
+  register: xui_nginx_certificate_files
+
+- name: Require TLS material for both managed domains
+  ansible.builtin.assert:
+    that:
+      - >-
+        xui_nginx_certificate_files.results
+        | selectattr('stat.exists')
+        | list
+        | length == xui_nginx_certificate_files.results | length
+    fail_msg: "TLS certificate or private key is missing for a managed domain."
+
+- name: Create 3x-ui Nginx directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  loop:
+    - "{{ xui_nginx_include_dir }}"
+    - "{{ xui_nginx_include_dir }}/stream-enabled"
+    - /etc/nginx/snippets
+    - /etc/nginx/conf.d
+    - /etc/nginx/sites-available
+    - /etc/nginx/sites-enabled
+
+- name: Install the 3x-ui Nginx global stream include
+  ansible.builtin.template:
+    src: "{{ xui_nginx_template_dir | default(playbook_dir ~ '/templates') }}/nginx.conf.j2"
+    dest: "{{ xui_nginx_include_dir }}/nginx.conf"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: nginx configuration changed
+
+- name: Include the 3x-ui stream context from the main Nginx configuration
+  ansible.builtin.blockinfile:
+    path: "{{ xui_nginx_main_config_path }}"
+    marker: "# {mark} ANSIBLE MANAGED 3x-ui STREAM INCLUDE"
+    insertafter: EOF
+    block: "include {{ xui_nginx_include_dir }}/nginx.conf;"
+  notify: nginx configuration changed
+
+- name: Install the 3x-ui Nginx templates
+  ansible.builtin.template:
+    src: "{{ xui_nginx_template_dir | default(playbook_dir ~ '/templates') }}/{{ item.src }}"
+    dest: "{{ item.dest }}"
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - src: nginx/stream.conf.j2
+      dest: "{{ xui_nginx_include_dir }}/stream-enabled/3x-ui.conf"
+    - src: nginx/maps.conf.j2
+      dest: /etc/nginx/conf.d/00-3x-ui-maps.conf
+    - src: nginx/includes.conf.j2
+      dest: /etc/nginx/snippets/3x-ui-includes.conf
+    - src: nginx/http-redirect.conf.j2
+      dest: /etc/nginx/sites-available/3x-ui-http-redirect.conf
+    - src: nginx/panel.conf.j2
+      dest: /etc/nginx/sites-available/3x-ui-panel.conf
+    - src: nginx/reality.conf.j2
+      dest: /etc/nginx/sites-available/3x-ui-reality.conf
+  notify: nginx configuration changed
+
+- name: Enable the 3x-ui Nginx sites
+  ansible.builtin.file:
+    src: "{{ item.src }}"
+    dest: "{{ item.dest }}"
+    state: link
+  loop:
+    - src: /etc/nginx/sites-available/3x-ui-http-redirect.conf
+      dest: /etc/nginx/sites-enabled/3x-ui-http-redirect.conf
+    - src: /etc/nginx/sites-available/3x-ui-panel.conf
+      dest: /etc/nginx/sites-enabled/3x-ui-panel.conf
+    - src: /etc/nginx/sites-available/3x-ui-reality.conf
+      dest: /etc/nginx/sites-enabled/3x-ui-reality.conf
+  notify: nginx configuration changed
+
+- name: Apply validated Nginx configuration changes
+  ansible.builtin.meta: flush_handlers
+
+- name: Validate Nginx configuration
+  ansible.builtin.command:
+    cmd: nginx -t
+  changed_when: false
+
+- name: Check the Nginx service
+  ansible.builtin.command:
+    cmd: systemctl is-active nginx
+  register: xui_nginx_service_status
+  changed_when: false
+  when: xui_nginx_manage_service | default(true) | bool
+
+- name: Verify that Nginx is running
+  ansible.builtin.assert:
+    that:
+      - xui_nginx_service_status.rc == 0
+      - xui_nginx_service_status.stdout | trim == "active"
+    fail_msg: "The Nginx service is not active. Check: journalctl -u nginx"
+  when: xui_nginx_manage_service | default(true) | bool

@@ -1,0 +1,22 @@
+map $ssl_preread_server_name $xui_sni_upstream {
+    hostnames;
+    {{ xui_panel_domain }} xui_panel;
+    {{ xui_reality_domain }} xui_reality;
+    default xui_reality;
+}
+
+upstream xui_panel {
+    server 127.0.0.1:{{ xui_panel_proxy_port }};
+}
+
+upstream xui_reality {
+    server 127.0.0.1:{{ xui_reality_port }};
+}
+
+server {
+    listen 443;
+    listen [::]:443;
+    proxy_protocol on;
+    proxy_pass $xui_sni_upstream;
+    ssl_preread on;
+}

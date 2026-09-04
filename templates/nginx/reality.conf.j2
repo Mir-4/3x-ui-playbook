@@ -1,0 +1,11 @@
+server {
+    listen 127.0.0.1:{{ xui_reality_proxy_port }} ssl http2;
+    server_name {{ xui_reality_domain }};
+
+    server_tokens off;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_certificate {{ xui_reality_certificate_dir }}/fullchain.pem;
+    ssl_certificate_key {{ xui_reality_certificate_dir }}/privkey.pem;
+
+    include /etc/nginx/snippets/3x-ui-includes.conf;
+}

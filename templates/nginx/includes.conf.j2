@@ -1,0 +1,80 @@
+location = /{{ xui_subscription_path }} {
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto https;
+    proxy_pass http://127.0.0.1:{{ xui_subscription_port }};
+}
+
+location ^~ /{{ xui_subscription_path }}/ {
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto https;
+    proxy_pass http://127.0.0.1:{{ xui_subscription_port }};
+}
+
+location = /{{ xui_json_path }} {
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto https;
+    proxy_pass http://127.0.0.1:{{ xui_subscription_port }};
+}
+
+location ^~ /{{ xui_json_path }}/ {
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto https;
+    proxy_pass http://127.0.0.1:{{ xui_subscription_port }};
+}
+
+location = /{{ xui_xhttp_path }} {
+    grpc_pass grpc://unix:{{ xui_xhttp_socket }};
+    grpc_buffer_size 16k;
+    grpc_socket_keepalive on;
+    grpc_read_timeout 1h;
+    grpc_send_timeout 1h;
+    grpc_set_header Connection "";
+    grpc_set_header Host $host;
+    grpc_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    grpc_set_header X-Forwarded-Proto $scheme;
+    grpc_set_header X-Forwarded-Port $server_port;
+    grpc_set_header X-Forwarded-Host $host;
+}
+
+{% for route in xui_service_registry | selectattr('nginx_route', 'equalto', 'websocket') %}
+location = /{{ route.transport_path }} {
+    client_max_body_size 0;
+    client_body_timeout 1d;
+    proxy_http_version 1.1;
+    proxy_buffering off;
+    proxy_request_buffering off;
+    proxy_socket_keepalive on;
+    proxy_read_timeout 1d;
+    proxy_set_header Connection $xui_connection_upgrade;
+    proxy_set_header Host $host;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_pass http://{{ route.local_listener }};
+}
+{% endfor %}
+{% for route in xui_service_registry | selectattr('nginx_route', 'equalto', 'grpc') %}
+location = /{{ route.transport_path }} {
+    client_max_body_size 0;
+    client_body_timeout 1d;
+    grpc_read_timeout 1d;
+    grpc_send_timeout 1d;
+    grpc_socket_keepalive on;
+    grpc_set_header Host $host;
+    grpc_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    grpc_set_header X-Forwarded-Proto $scheme;
+    grpc_pass grpc://{{ route.local_listener }};
+}
+{% endfor %}
+
+location / {
+    return 404;
+}

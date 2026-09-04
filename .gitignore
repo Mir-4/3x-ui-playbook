@@ -30,6 +30,7 @@ env/
 *.log
 *.tmp
 tmp/
+AGENTS.md
 
 # Editors and operating systems
 .DS_Store

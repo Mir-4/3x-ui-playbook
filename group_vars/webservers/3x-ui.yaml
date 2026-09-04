@@ -1,0 +1,110 @@
+xui_version: "v3.7.0"
+xui_installer_path: "/var/tmp/3x-ui-install-{{ xui_version }}.sh"
+xui_install_state_path: "/etc/x-ui/ansible-installed-version"
+xui_configuration_schema_version: "2"
+xui_configuration_state_path: "/etc/x-ui/ansible-configuration-schema-version"
+xui_release_script_url: "https://raw.githubusercontent.com/MHSanaei/3x-ui/{{ xui_version }}/install.sh"
+xui_db_type: "sqlite"
+xui_ssl_mode: "none"
+xui_nginx_main_config_path: "/etc/nginx/nginx.conf"
+xui_nginx_include_dir: "/etc/nginx/3x-ui"
+
+# Configure both domains before deploying. The playbook rejects an empty
+# or duplicate REALITY domain before changing the host.
+xui_panel_domain: ""
+xui_reality_domain: ""
+certbot_email: ""
+xui_panel_certificate_dir: "/etc/letsencrypt/live/{{ xui_panel_domain }}"
+xui_reality_certificate_dir: "/etc/letsencrypt/live/{{ xui_reality_domain }}"
+
+# These ports and paths appear in client configurations. Change them only as
+# part of a client-configuration migration.
+xui_panel_port: "2053"
+xui_subscription_port: "30001"
+xui_ws_port: "30002"
+xui_trojan_port: "30003"
+xui_reality_port: "8443"
+xui_panel_proxy_port: "7443"
+xui_reality_proxy_port: "9443"
+xui_panel_path: "panel"
+xui_subscription_path: "sub-7f9c4a2d"
+xui_json_path: "json-a86e31bc"
+xui_xhttp_path: "xhttp-b72d90ef"
+xui_ws_path: "ws-ef84a1c2"
+xui_trojan_path: "grpc-1d6ab9e0"
+xui_xhttp_socket: "/dev/shm/uds2023.sock"
+
+xui_nginx_listener_ports:
+  - "{{ xui_panel_port }}"
+  - "{{ xui_subscription_port }}"
+  - "{{ xui_ws_port }}"
+  - "{{ xui_trojan_port }}"
+  - "{{ xui_reality_port }}"
+  - "{{ xui_panel_proxy_port }}"
+  - "{{ xui_reality_proxy_port }}"
+xui_nginx_path_segments:
+  - "{{ xui_panel_path }}"
+  - "{{ xui_subscription_path }}"
+  - "{{ xui_json_path }}"
+  - "{{ xui_xhttp_path }}"
+  - "{{ xui_ws_path }}"
+  - "{{ xui_trojan_path }}"
+
+# Nginx renders the route-specific entries below.
+xui_service_registry:
+  - name: panel
+    protocol: http
+    local_listener: "127.0.0.1:{{ xui_panel_port }}"
+    public_domain: "{{ xui_panel_domain }}"
+    public_port: 443
+    transport_path: "{{ xui_panel_path }}"
+    tls_mode: terminated
+    nginx_route: panel
+  - name: subscription
+    protocol: http
+    local_listener: "127.0.0.1:{{ xui_subscription_port }}"
+    public_domain: "{{ xui_panel_domain }}"
+    public_port: 443
+    transport_path: "{{ xui_subscription_path }}"
+    tls_mode: terminated
+    nginx_route: subscription
+  - name: subscription-json
+    protocol: http
+    local_listener: "127.0.0.1:{{ xui_subscription_port }}"
+    public_domain: "{{ xui_panel_domain }}"
+    public_port: 443
+    transport_path: "{{ xui_json_path }}"
+    tls_mode: terminated
+    nginx_route: subscription-json
+  - name: vless-xhttp
+    protocol: grpc
+    local_listener: "unix:{{ xui_xhttp_socket }}"
+    public_domain: "{{ xui_panel_domain }}"
+    public_port: 443
+    transport_path: "{{ xui_xhttp_path }}"
+    tls_mode: terminated
+    nginx_route: xhttp
+  - name: vless-websocket
+    protocol: websocket
+    local_listener: "127.0.0.1:{{ xui_ws_port }}"
+    public_domain: "{{ xui_panel_domain }}"
+    public_port: 443
+    transport_path: "{{ xui_ws_port }}/{{ xui_ws_path }}"
+    tls_mode: terminated
+    nginx_route: websocket
+  - name: trojan-grpc
+    protocol: grpc
+    local_listener: "127.0.0.1:{{ xui_trojan_port }}"
+    public_domain: "{{ xui_panel_domain }}"
+    public_port: 443
+    transport_path: "{{ xui_trojan_port }}/{{ xui_trojan_path }}"
+    tls_mode: terminated
+    nginx_route: grpc
+  - name: vless-reality
+    protocol: reality
+    local_listener: "127.0.0.1:{{ xui_reality_port }}"
+    public_domain: "{{ xui_reality_domain }}"
+    public_port: 443
+    transport_path: ""
+    tls_mode: passthrough
+    nginx_route: stream

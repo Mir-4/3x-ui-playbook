@@ -1,0 +1,4 @@
+# This fragment is included from the main Nginx context by Ansible.
+stream {
+    include {{ xui_nginx_include_dir }}/stream-enabled/*.conf;
+}

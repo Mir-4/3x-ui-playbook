@@ -1,0 +1,114 @@
+---
+- name: Read the 3x-ui installation state
+  ansible.builtin.slurp:
+    src: "{{ xui_install_state_path }}"
+  register: xui_install_state
+  failed_when: false
+  changed_when: false
+
+- name: Decide whether 3x-ui needs installation
+  ansible.builtin.set_fact:
+    xui_needs_install: >-
+      {{ not xui_install_state['content'] is defined or
+         (xui_install_state['content'] | b64decode | trim) != xui_version }}
+
+- name: Ensure the backup directory exists
+  ansible.builtin.file:
+    path: /var/backups/x-ui
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+  when: xui_needs_install
+
+- name: Check whether the 3x-ui database exists
+  ansible.builtin.stat:
+    path: /etc/x-ui/x-ui.db
+  register: xui_database
+  when: xui_needs_install
+
+- name: Back up the 3x-ui database before installation
+  ansible.builtin.command:
+    argv:
+      - sqlite3
+      - /etc/x-ui/x-ui.db
+      - ".backup '/var/backups/x-ui/x-ui.db'"
+  when: xui_needs_install and xui_database.stat.exists
+  changed_when: true
+
+- name: Download the pinned 3x-ui installer
+  ansible.builtin.get_url:
+    url: "{{ xui_release_script_url }}"
+    dest: "{{ xui_installer_path }}"
+    owner: root
+    group: root
+    mode: "0700"
+  when: xui_needs_install
+
+- name: Run the pinned 3x-ui installer
+  ansible.builtin.command:
+    cmd: "{{ xui_installer_path }} {{ xui_version }}"
+  environment:
+    XUI_NONINTERACTIVE: "1"
+    XUI_PANEL_PORT: "{{ xui_panel_port }}"
+    XUI_WEB_BASE_PATH: "{{ xui_panel_path }}"
+    XUI_SSL_MODE: "{{ xui_ssl_mode }}"
+    XUI_DB_TYPE: "{{ xui_db_type }}"
+  register: xui_install_result
+  when: xui_needs_install
+  changed_when: true
+
+- name: Record the installed 3x-ui version
+  ansible.builtin.copy:
+    content: "{{ xui_version }}\n"
+    dest: "{{ xui_install_state_path }}"
+    owner: root
+    group: root
+    mode: "0600"
+  when: xui_needs_install and xui_install_result.rc == 0
+
+- name: Record the managed 3x-ui configuration schema
+  ansible.builtin.copy:
+    content: "{{ xui_configuration_schema_version }}\n"
+    dest: "{{ xui_configuration_state_path }}"
+    owner: root
+    group: root
+    mode: "0600"
+
+- name: Ensure the 3x-ui service is enabled and running
+  ansible.builtin.service:
+    name: x-ui
+    state: started
+    enabled: true
+
+- name: Check the 3x-ui service
+  ansible.builtin.command:
+    cmd: systemctl is-active x-ui
+  register: xui_service_status
+  changed_when: false
+
+- name: Verify that 3x-ui is running
+  ansible.builtin.assert:
+    that:
+      - xui_service_status.rc == 0
+      - xui_service_status.stdout | trim == "active"
+    fail_msg: "The x-ui service is not active. Check: journalctl -u x-ui"
+
+- name: Read the x-ui settings
+  ansible.builtin.command:
+    cmd: /usr/local/x-ui/x-ui setting -show true
+  register: xui_settings
+  changed_when: false
+
+- name: Bind x-ui to localhost
+  ansible.builtin.command:
+    cmd: /usr/local/x-ui/x-ui setting -listenIP 127.0.0.1
+  register: xui_listen_update
+  when: "'listenIP: 127.0.0.1' not in xui_settings.stdout"
+  changed_when: true
+
+- name: Restart x-ui after changing its listen address
+  ansible.builtin.service:
+    name: x-ui
+    state: restarted
+  when: xui_listen_update.changed | default(false)

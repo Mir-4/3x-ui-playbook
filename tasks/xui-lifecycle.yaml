@@ -82,16 +82,16 @@
     enabled: true
 
 - name: Check the 3x-ui service
-  ansible.builtin.command:
-    cmd: systemctl is-active x-ui
+  ansible.builtin.systemd_service:
+    name: x-ui
+    state: started
+    enabled: true
   register: xui_service_status
-  changed_when: false
 
 - name: Verify that 3x-ui is running
   ansible.builtin.assert:
     that:
-      - xui_service_status.rc == 0
-      - xui_service_status.stdout | trim == "active"
+      - xui_service_status.status.ActiveState == "active"
     fail_msg: "The x-ui service is not active. Check: journalctl -u x-ui"
 
 - name: Read the x-ui settings

@@ -166,16 +166,16 @@
   changed_when: false
 
 - name: Check the Nginx service
-  ansible.builtin.command:
-    cmd: systemctl is-active nginx
+  ansible.builtin.systemd_service:
+    name: nginx
+    state: started
+    enabled: true
   register: xui_nginx_service_status
-  changed_when: false
   when: xui_nginx_manage_service | default(true) | bool
 
 - name: Verify that Nginx is running
   ansible.builtin.assert:
     that:
-      - xui_nginx_service_status.rc == 0
-      - xui_nginx_service_status.stdout | trim == "active"
+      - xui_nginx_service_status.status.ActiveState == "active"
     fail_msg: "The Nginx service is not active. Check: journalctl -u nginx"
   when: xui_nginx_manage_service | default(true) | bool

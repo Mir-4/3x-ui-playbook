@@ -46,6 +46,7 @@
   when: xui_missing_certificate_targets | length > 0
 
 - name: Issue missing TLS certificates with Certbot
+  when: xui_missing_certificate_targets | length > 0
   block:
     - name: Run Certbot in standalone mode
       ansible.builtin.command:
@@ -67,4 +68,3 @@
         name: nginx
         state: started
         enabled: true
-  when: xui_missing_certificate_targets | length > 0

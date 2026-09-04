@@ -1,0 +1,43 @@
+---
+- name: Install deployment packages
+  ansible.builtin.apt:
+    update_cache: true
+    name:
+      - curl
+      - wget
+      - jq
+      - bash
+      - sudo
+      - nginx-full
+      - libnginx-mod-stream
+      - certbot
+      - sqlite3
+      - ufw
+      - netcat-openbsd
+      - mtr
+      - python3
+      - libcap2-bin
+      - ca-certificates
+    state: present
+    install_recommends: false
+
+- name: Configure public firewall rules
+  community.general.ufw:
+    rule: allow
+    port: "{{ item.port }}"
+    proto: "{{ item.proto }}"
+  loop:
+    - { port: "22", proto: "tcp" }
+    - { port: "80", proto: "tcp" }
+    - { port: "443", proto: "tcp" }
+    - { port: "443", proto: "udp" }
+
+- name: Enable UFW
+  community.general.ufw:
+    state: enabled
+
+- name: Enable and start Nginx
+  ansible.builtin.service:
+    name: nginx
+    state: started
+    enabled: true

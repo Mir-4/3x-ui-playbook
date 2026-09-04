@@ -1,0 +1,70 @@
+---
+- name: Define certificate targets
+  ansible.builtin.set_fact:
+    xui_certificate_targets:
+      - domain: "{{ xui_panel_domain }}"
+        directory: "{{ xui_panel_certificate_dir }}"
+      - domain: "{{ xui_reality_domain }}"
+        directory: "{{ xui_reality_certificate_dir }}"
+  changed_when: false
+
+- name: Check whether TLS certificate files exist
+  ansible.builtin.stat:
+    path: "{{ item.0.directory }}/{{ item.1 }}"
+  loop: "{{ xui_certificate_targets | product(['fullchain.pem', 'privkey.pem']) | list }}"
+  register: xui_certificate_statuses
+
+- name: Identify domains with missing TLS certificate files
+  ansible.builtin.set_fact:
+    xui_missing_certificate_domains: >-
+      {{ xui_certificate_statuses.results
+         | rejectattr("stat.exists")
+         | map(attribute="item.0.domain")
+         | unique
+         | list }}
+  changed_when: false
+
+- name: Identify missing TLS certificates
+  ansible.builtin.set_fact:
+    xui_missing_certificate_targets: >-
+      {{ xui_certificate_targets
+         | selectattr("domain", "in", xui_missing_certificate_domains)
+         | list }}
+  changed_when: false
+
+- name: Require certificate settings when issuing certificates
+  ansible.builtin.assert:
+    that:
+      - certbot_email | length > 0
+    fail_msg: "Set certbot_email before issuing a TLS certificate."
+  when: xui_missing_certificate_targets | length > 0
+
+- name: Stop nginx for standalone certificate issuance
+  ansible.builtin.service:
+    name: nginx
+    state: stopped
+  when: xui_missing_certificate_targets | length > 0
+
+- name: Issue missing TLS certificates with Certbot
+  block:
+    - name: Run Certbot in standalone mode
+      ansible.builtin.command:
+        argv:
+          - certbot
+          - certonly
+          - --standalone
+          - --non-interactive
+          - --agree-tos
+          - --email
+          - "{{ certbot_email }}"
+          - --domain
+          - "{{ item.domain }}"
+      loop: "{{ xui_missing_certificate_targets }}"
+      changed_when: true
+  always:
+    - name: Start nginx after certificate issuance
+      ansible.builtin.service:
+        name: nginx
+        state: started
+        enabled: true
+  when: xui_missing_certificate_targets | length > 0

@@ -1,0 +1,111 @@
+---
+- name: Test 3x-ui Nginx configuration
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  become: true
+
+  vars:
+    xui_nginx_manage_service: false
+    xui_nginx_main_config_path: /etc/nginx/nginx.conf
+    xui_nginx_include_dir: /etc/nginx/3x-ui
+    xui_nginx_template_dir: "{{ playbook_dir }}/../templates"
+    xui_panel_domain: panel.test
+    xui_reality_domain: reality.test
+    xui_panel_certificate_dir: /etc/letsencrypt/live/panel.test
+    xui_reality_certificate_dir: /etc/letsencrypt/live/reality.test
+    xui_panel_port: "2053"
+    xui_subscription_port: "30001"
+    xui_ws_port: "30002"
+    xui_trojan_port: "30003"
+    xui_reality_port: "8443"
+    xui_panel_proxy_port: "7443"
+    xui_reality_proxy_port: "9443"
+    xui_panel_path: panel-token
+    xui_subscription_path: sub-token
+    xui_json_path: json-token
+    xui_xhttp_path: xhttp-token
+    xui_ws_path: ws-token
+    xui_trojan_path: grpc-token
+    xui_xhttp_socket: /dev/shm/uds2023.sock
+    xui_service_registry:
+      - name: vless-websocket
+        protocol: websocket
+        local_listener: "127.0.0.1:30002"
+        public_domain: panel.test
+        public_port: 443
+        transport_path: 30002/ws-token
+        tls_mode: terminated
+        nginx_route: websocket
+      - name: trojan-grpc
+        protocol: grpc
+        local_listener: "127.0.0.1:30003"
+        public_domain: panel.test
+        public_port: 443
+        transport_path: 30003/grpc-token
+        tls_mode: terminated
+        nginx_route: grpc
+
+  handlers:
+    - name: Validate nginx configuration
+      ansible.builtin.command:
+        cmd: nginx -t
+      changed_when: false
+      listen: nginx configuration changed
+
+  tasks:
+    - name: Create test certificate directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - "{{ xui_panel_certificate_dir }}"
+        - "{{ xui_reality_certificate_dir }}"
+
+    - name: Create test TLS certificates
+      ansible.builtin.command:
+        argv:
+          - openssl
+          - req
+          - -x509
+          - -newkey
+          - rsa:2048
+          - -nodes
+          - -days
+          - "1"
+          - -subj
+          - "/CN={{ item.domain }}"
+          - -keyout
+          - "{{ item.directory }}/privkey.pem"
+          - -out
+          - "{{ item.directory }}/fullchain.pem"
+      args:
+        creates: "{{ item.directory }}/fullchain.pem"
+      loop:
+        - domain: "{{ xui_panel_domain }}"
+          directory: "{{ xui_panel_certificate_dir }}"
+        - domain: "{{ xui_reality_domain }}"
+          directory: "{{ xui_reality_certificate_dir }}"
+
+    - name: Import production Nginx tasks
+      ansible.builtin.import_tasks: ../tasks/nginx.yaml
+
+    - name: Read the deployed Nginx configuration
+      ansible.builtin.command:
+        cmd: nginx -T
+      register: xui_deployed_nginx_config
+      changed_when: false
+
+    - name: Verify the deployed Nginx topology
+      ansible.builtin.assert:
+        that:
+          - xui_deployed_nginx_config.rc == 0
+          - xui_deployed_nginx_config.stdout is search('listen 443;')
+          - xui_deployed_nginx_config.stdout is search('server 127.0.0.1:7443;')
+          - xui_deployed_nginx_config.stdout is search('server 127.0.0.1:8443;')
+          - xui_deployed_nginx_config.stdout is search('listen 127.0.0.1:7443 ssl http2 proxy_protocol;')
+          - xui_deployed_nginx_config.stdout is search('listen 127.0.0.1:9443 ssl http2;')
+          - xui_deployed_nginx_config.stdout is search('location = /30002/ws-token')
+          - xui_deployed_nginx_config.stdout is search('location = /30003/grpc-token')
+          - xui_deployed_nginx_config.stdout is search('grpc://unix:/dev/shm/uds2023.sock')

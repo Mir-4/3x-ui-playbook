@@ -103,12 +103,6 @@
 - name: Bind x-ui to localhost
   ansible.builtin.command:
     cmd: /usr/local/x-ui/x-ui setting -listenIP 127.0.0.1
-  register: xui_listen_update
+  notify: xui listen address changed
   when: "'listenIP: 127.0.0.1' not in xui_settings.stdout"
   changed_when: true
-
-- name: Restart x-ui after changing its listen address
-  ansible.builtin.service:
-    name: x-ui
-    state: restarted
-  when: xui_listen_update.changed | default(false)

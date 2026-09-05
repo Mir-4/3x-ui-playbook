@@ -19,6 +19,11 @@
         state: reloaded
       when: xui_nginx_manage_service | default(true) | bool
       listen: nginx configuration changed
+    - name: Restart x-ui after changing its listen address
+      ansible.builtin.service:
+        name: x-ui
+        state: restarted
+      listen: xui listen address changed
 
   tasks:
     - name: Prepare the host baseline

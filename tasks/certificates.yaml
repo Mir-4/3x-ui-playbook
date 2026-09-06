@@ -49,3 +49,102 @@
   loop: "{{ xui_missing_certificate_targets }}"
   changed_when: true
   when: xui_missing_certificate_targets | length > 0
+
+- name: Check certificate files
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/openssl
+      - x509
+      - -in
+      - "{{ item.directory }}/fullchain.pem"
+      - -noout
+  loop: "{{ xui_certificate_targets }}"
+  register: xui_certificate_format_checks
+  changed_when: false
+  failed_when: false
+
+- name: Require readable certificates
+  ansible.builtin.assert:
+    that:
+      - item.rc == 0
+    fail_msg: >-
+      The certificate for {{ item.item.domain }} is missing or invalid.
+  loop: "{{ xui_certificate_format_checks.results }}"
+
+- name: Check certificate domains
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/openssl
+      - x509
+      - -in
+      - "{{ item.directory }}/fullchain.pem"
+      - -noout
+      - -checkhost
+      - "{{ item.domain }}"
+  loop: "{{ xui_certificate_targets }}"
+  register: xui_certificate_domain_checks
+  changed_when: false
+  failed_when: false
+
+- name: Require certificates for the expected domains
+  ansible.builtin.assert:
+    that:
+      - item.rc == 0
+    fail_msg: >-
+      The certificate at {{ item.item.directory }} does not cover
+      {{ item.item.domain }}.
+  loop: "{{ xui_certificate_domain_checks.results }}"
+
+- name: Check certificate expiry
+  ansible.builtin.command:
+    argv:
+      - /usr/bin/openssl
+      - x509
+      - -in
+      - "{{ item.directory }}/fullchain.pem"
+      - -noout
+      - -checkend
+      - "{{ xui_certificate_minimum_validity_seconds | string }}"
+  loop: "{{ xui_certificate_targets }}"
+  register: xui_certificate_expiry_checks
+  changed_when: false
+  failed_when: false
+
+- name: Require certificates with enough validity
+  ansible.builtin.assert:
+    that:
+      - item.rc == 0
+    fail_msg: >-
+      The certificate for {{ item.item.domain }} expires in less than
+      seven days.
+  loop: "{{ xui_certificate_expiry_checks.results }}"
+
+- name: Create certbot deploy directory
+  ansible.builtin.file:
+    path: /etc/letsencrypt/renewal-hooks/deploy
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install certbot deploy hook
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/files/letsencrypt/reload-nginx.sh"
+    dest: /etc/letsencrypt/renewal-hooks/deploy/10-3x-ui-deploy-hook.sh
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Validate certificate deploy hook syntax
+  ansible.builtin.command:
+    argv:
+      - /bin/sh
+      - -n
+      - /etc/letsencrypt/renewal-hooks/deploy/10-3x-ui-deploy-hook.sh
+  changed_when: false
+
+- name: Enable and start the certbot timer
+  ansible.builtin.systemd:
+    name: certbot.timer
+    enabled: true
+    state: started

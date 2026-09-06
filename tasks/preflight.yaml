@@ -22,6 +22,7 @@
       - xui_xhttp_socket is match("^/")
       - xui_panel_certificate_dir is match("^/")
       - xui_reality_certificate_dir is match("^/")
+      - xui_acme_webroot is match("^/")
     fail_msg: >-
       Configure distinct panel and REALITY domains, unique valid listener ports,
       safe path segments, and absolute certificate and XHTTP socket paths.

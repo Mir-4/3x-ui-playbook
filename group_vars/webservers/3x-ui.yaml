@@ -50,6 +50,7 @@ xui_nginx_path_segments:
   - "{{ xui_trojan_path }}"
 
 xui_acme_webroot: "/var/lib/3x-ui/acme-webroot"
+xui_certificate_minimum_validity_seconds: 604800
 xui_certificate_targets:
   - name: panel
     domain: "{{ xui_panel_domain }}"

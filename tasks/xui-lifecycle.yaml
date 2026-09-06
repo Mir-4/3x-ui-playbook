@@ -74,6 +74,7 @@
     XUI_WEB_BASE_PATH: "{{ xui_panel_path }}"
     XUI_SSL_MODE: "{{ xui_ssl_mode }}"
     XUI_DB_TYPE: "{{ xui_db_type }}"
+  no_log: true
   when: xui_needs_install
   changed_when: true
 

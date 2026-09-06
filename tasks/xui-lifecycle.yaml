@@ -21,6 +21,11 @@
     mode: "0700"
   when: xui_needs_install
 
+- name: Set upgrade backup path
+  ansible.builtin.set_fact:
+    xui_upgrade_backup_path: >-
+      /var/backups/x-ui/x-ui-{{ ansible_date_time.iso8601_basic_short }}.db
+
 - name: Check whether the 3x-ui database exists
   ansible.builtin.stat:
     path: /etc/x-ui/x-ui.db
@@ -32,7 +37,7 @@
     argv:
       - sqlite3
       - /etc/x-ui/x-ui.db
-      - ".backup '/var/backups/x-ui/x-ui.db'"
+      - ".backup '{{ xui_upgrade_backup_path }}'"
   when: xui_needs_install and xui_database.stat.exists
   changed_when: true
 

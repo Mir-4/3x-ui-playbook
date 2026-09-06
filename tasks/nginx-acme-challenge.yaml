@@ -1,0 +1,97 @@
+---
+- name: Remove the legacy 3x-ui Nginx site
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /etc/nginx/sites-enabled/3x-ui.conf
+    - /etc/nginx/sites-available/3x-ui.conf
+  notify: nginx configuration changed
+
+- name: Read the Nginx stream marker
+  ansible.builtin.slurp:
+    src: "{{ xui_nginx_main_config_path }}"
+  register: xui_nginx_main_config_file
+  changed_when: false
+
+- name: Inspect the existing Nginx configuration
+  ansible.builtin.command:
+    cmd: nginx -T
+  register: xui_nginx_current_config
+  changed_when: false
+  failed_when: false
+
+- name: Require a valid existing Nginx configuration
+  ansible.builtin.assert:
+    that:
+      - xui_nginx_current_config.rc == 0
+    fail_msg: >-
+      Nginx configuration is invalid. Fix it before adding the 3x-ui files.
+
+- name: Identify the managed ACME site
+  ansible.builtin.set_fact:
+    xui_nginx_acme_site_is_loaded: >-
+      {{
+        xui_nginx_current_config.stdout
+        is search(
+          '(?m)^# configuration file /etc/nginx/sites-enabled/3x-ui-http-redirect\.conf:'
+        )
+      }}
+  changed_when: false
+
+- name: Reject conflicting Nginx configuration
+  ansible.builtin.assert:
+    that:
+      - >-
+        (xui_nginx_main_config_file.content | b64decode)
+        is search('BEGIN ANSIBLE MANAGED 3x-ui STREAM INCLUDE') or
+        (xui_nginx_current_config.stdout ~ xui_nginx_current_config.stderr)
+        is not search('(?:^|\n)\s*stream\s*\{')
+      - >-
+        (xui_nginx_main_config_file.content | b64decode)
+        is search('BEGIN ANSIBLE MANAGED 3x-ui STREAM INCLUDE') or
+        (xui_nginx_current_config.stdout ~ xui_nginx_current_config.stderr)
+        is not search('(?:^|\n)\s*listen\s+(?:\[::\]:)?443(?:\s|;)')
+      - >-
+        (xui_nginx_main_config_file.content | b64decode)
+        is search('BEGIN ANSIBLE MANAGED 3x-ui STREAM INCLUDE') or
+        xui_nginx_acme_site_is_loaded or
+        (xui_nginx_current_config.stdout ~ xui_nginx_current_config.stderr)
+        is not search('server_name\s+[^;]*' ~ (xui_panel_domain | regex_escape))
+      - >-
+        (xui_nginx_main_config_file.content | b64decode)
+        is search('BEGIN ANSIBLE MANAGED 3x-ui STREAM INCLUDE') or
+        xui_nginx_acme_site_is_loaded or
+        (xui_nginx_current_config.stdout ~ xui_nginx_current_config.stderr)
+        is not search('server_name\s+[^;]*' ~ (xui_reality_domain | regex_escape))
+      - xui_nginx_current_config.stderr is not search('conflicting server name')
+    fail_msg: >-
+      A non-project Nginx configuration already has a stream block, listens on
+      TCP 443, or claims a managed domain. Resolve the conflict first.
+
+- name: Create ACME webroot
+  ansible.builtin.file:
+    path: "{{ xui_acme_webroot }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install the ACME HTTP site
+  ansible.builtin.template:
+    src: "{{ playbook_dir }}/templates/nginx/http-redirect.conf.j2"
+    dest: /etc/nginx/sites-available/3x-ui-http-redirect.conf
+    owner: root
+    group: root
+    mode: "0644"
+  notify: nginx configuration changed
+
+- name: Enable the ACME HTTP site
+  ansible.builtin.file:
+    src: /etc/nginx/sites-available/3x-ui-http-redirect.conf
+    dest: /etc/nginx/sites-enabled/3x-ui-http-redirect.conf
+    state: link
+  notify: nginx configuration changed
+
+- name: Activate the ACME HTTP site
+  ansible.builtin.meta: flush_handlers

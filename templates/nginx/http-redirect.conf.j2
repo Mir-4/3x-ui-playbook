@@ -3,5 +3,13 @@ server {
     listen [::]:80;
     server_name {{ xui_panel_domain }} {{ xui_reality_domain }};
 
-    return 301 https://$host$request_uri;
+    location ^~ /.well-known/acme-challenge/ {
+        root {{ xui_acme_webroot }};
+        default_type text/plain;
+        try_files $uri =404;
+    }
+
+    location / {
+        return 301 https://$host$request_uri;
+    }
 }

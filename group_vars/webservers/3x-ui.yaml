@@ -9,8 +9,7 @@ xui_ssl_mode: "none"
 xui_nginx_main_config_path: "/etc/nginx/nginx.conf"
 xui_nginx_include_dir: "/etc/nginx/3x-ui"
 
-# Configure both domains before deploying. The playbook rejects an empty
-# or duplicate REALITY domain before changing the host.
+# Configure both domains before deploying.
 xui_panel_domain: ""
 xui_reality_domain: ""
 certbot_email: ""
@@ -49,6 +48,17 @@ xui_nginx_path_segments:
   - "{{ xui_xhttp_path }}"
   - "{{ xui_ws_path }}"
   - "{{ xui_trojan_path }}"
+
+xui_acme_webroot: "/var/lib/3x-ui/acme-webroot"
+xui_certificate_targets:
+  - name: panel
+    domain: "{{ xui_panel_domain }}"
+    directory: "{{ xui_panel_certificate_dir }}"
+    certbot_name: "{{ xui_panel_domain }}"
+  - name: reality
+    domain: "{{ xui_reality_domain }}"
+    directory: "{{ xui_reality_certificate_dir }}"
+    certbot_name: "{{ xui_reality_domain }}"
 
 # Nginx renders the route-specific entries below.
 xui_service_registry:

@@ -32,6 +32,9 @@
     - name: Install and configure 3x-ui
       ansible.builtin.import_tasks: tasks/xui-lifecycle.yaml
 
+    - name: Configure ACME challenge
+      ansible.builtin.import_tasks: tasks/nginx-acme-challenge.yaml
+
     - name: Manage TLS certificates
       ansible.builtin.import_tasks: tasks/certificates.yaml
 

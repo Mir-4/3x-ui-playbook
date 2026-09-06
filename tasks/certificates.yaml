@@ -1,13 +1,4 @@
 ---
-- name: Define certificate targets
-  ansible.builtin.set_fact:
-    xui_certificate_targets:
-      - domain: "{{ xui_panel_domain }}"
-        directory: "{{ xui_panel_certificate_dir }}"
-      - domain: "{{ xui_reality_domain }}"
-        directory: "{{ xui_reality_certificate_dir }}"
-  changed_when: false
-
 - name: Check whether TLS certificate files exist
   ansible.builtin.stat:
     path: "{{ item.0.directory }}/{{ item.1 }}"
@@ -39,32 +30,22 @@
     fail_msg: "Set certbot_email before issuing a TLS certificate."
   when: xui_missing_certificate_targets | length > 0
 
-- name: Stop nginx for standalone certificate issuance
-  ansible.builtin.service:
-    name: nginx
-    state: stopped
-  when: xui_missing_certificate_targets | length > 0
-
 - name: Issue missing TLS certificates with Certbot
+  ansible.builtin.command:
+    argv:
+      - certbot
+      - certonly
+      - --webroot
+      - --webroot-path
+      - "{{ xui_acme_webroot }}"
+      - --non-interactive
+      - --agree-tos
+      - --email
+      - "{{ certbot_email }}"
+      - --cert-name
+      - "{{ item.certbot_name }}"
+      - --domain
+      - "{{ item.domain }}"
+  loop: "{{ xui_missing_certificate_targets }}"
+  changed_when: true
   when: xui_missing_certificate_targets | length > 0
-  block:
-    - name: Run Certbot in standalone mode
-      ansible.builtin.command:
-        argv:
-          - certbot
-          - certonly
-          - --standalone
-          - --non-interactive
-          - --agree-tos
-          - --email
-          - "{{ certbot_email }}"
-          - --domain
-          - "{{ item.domain }}"
-      loop: "{{ xui_missing_certificate_targets }}"
-      changed_when: true
-  always:
-    - name: Start nginx after certificate issuance
-      ansible.builtin.service:
-        name: nginx
-        state: started
-        enabled: true

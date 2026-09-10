@@ -1,0 +1,65 @@
+---
+- name: Prepare recovery
+  when: xui_recovery_action == 'prepare'
+  block:
+    - name: Inspect the SQLite database
+      ansible.builtin.stat:
+        path: /etc/x-ui/x-ui.db
+      register: xui_recovery_database
+
+    - name: Reject a missing or empty SQLite database
+      ansible.builtin.assert:
+        that:
+          - xui_recovery_database.stat.isreg | default(false)
+          - xui_recovery_database.stat.size | default(0) > 0
+        fail_msg: Refusing to back up a missing or empty SQLite database.
+
+    - name: Create the backup directory
+      ansible.builtin.file:
+        path: /var/backups/x-ui
+        state: directory
+        owner: root
+        group: root
+        mode: "0700"
+
+    - name: Read the UTC timestamp
+      ansible.builtin.command:
+        argv: [date, -u, '+%Y%m%dT%H%M%SZ']
+      register: xui_recovery_backup_time
+      changed_when: false
+
+    - name: Reserve a unique backup path
+      ansible.builtin.tempfile:
+        state: file
+        path: /var/backups/x-ui
+        prefix: "config-{{ xui_recovery_backup_time.stdout }}-"
+        suffix: .db
+      register: xui_recovery_backup
+
+    - name: Back up the SQLite database
+      ansible.builtin.command:
+        argv:
+          - sqlite3
+          - /etc/x-ui/x-ui.db
+          - ".backup '{{ xui_recovery_backup.path }}'"
+      changed_when: true
+
+    - name: Record the pending restart
+      ansible.builtin.copy:
+        dest: /etc/x-ui/ansible-config-restart-pending
+        content: "{{ xui_recovery_backup.path }}\n"
+        owner: root
+        group: root
+        mode: "0600"
+
+- name: Restart x-ui
+  ansible.builtin.systemd_service:
+    name: x-ui
+    state: restarted
+  when: xui_recovery_action == 'activate'
+
+- name: Clear the pending restart
+  ansible.builtin.file:
+    path: /etc/x-ui/ansible-config-restart-pending
+    state: absent
+  when: xui_recovery_action == 'complete'

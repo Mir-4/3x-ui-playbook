@@ -30,7 +30,7 @@
       ansible.builtin.import_tasks: tasks/host-baseline.yaml
 
     - name: Install and configure 3x-ui
-      ansible.builtin.import_tasks: tasks/xui-lifecycle.yaml
+      ansible.builtin.import_tasks: tasks/xui/lifecycle.yaml
 
     - name: Configure ACME challenge
       ansible.builtin.import_tasks: tasks/nginx-acme-challenge.yaml
@@ -40,3 +40,9 @@
 
     - name: Configure two-domain Nginx
       ansible.builtin.import_tasks: tasks/nginx.yaml
+
+    - name: Authenticate to the 3x-ui API
+      ansible.builtin.import_tasks: tasks/xui/auth.yaml
+
+    - name: Reconcile 3x-ui configuration
+      ansible.builtin.import_tasks: tasks/xui/config.yaml

@@ -1,0 +1,78 @@
+---
+- name: Check for a saved API token
+  ansible.builtin.stat:
+    path: "{{ xui_api_token_path }}"
+  register: xui_api_token_check
+  no_log: true
+
+- name: Bootstrap the API token
+  when: not xui_api_token_check.stat.exists
+  block:
+    - name: Read installer API token
+      ansible.builtin.command:
+        argv:
+          - awk
+          - >-
+            index($0, "XUI_API_TOKEN=") == 1 {
+              print substr($0, 15);
+              found = 1;
+              exit
+            }
+            END { if (!found) exit 1 }
+          - /etc/x-ui/install-result.env
+      register: xui_installer_api_token
+      changed_when: false
+      check_mode: false
+      no_log: true
+
+    - name: Reject an empty installer API token
+      ansible.builtin.assert:
+        that:
+          - xui_installer_api_token.stdout | trim | length > 0
+        fail_msg: The installer did not provide an API token.
+      no_log: true
+
+    - name: Save the API token
+      ansible.builtin.copy:
+        content: "{{ xui_installer_api_token.stdout | trim }}\n"
+        dest: "{{ xui_api_token_path }}"
+        owner: root
+        group: root
+        mode: "0600"
+      no_log: true
+      when: not ansible_check_mode
+
+    - name: Store the API token for this run
+      ansible.builtin.set_fact:
+        xui_api_token: "{{ xui_installer_api_token.stdout | trim }}"
+      no_log: true
+
+- name: Reuse the saved API token
+  when: xui_api_token_check.stat.exists
+  block:
+    - name: Read the saved API token
+      ansible.builtin.slurp:
+        src: "{{ xui_api_token_path }}"
+      register: xui_existing_api_token
+      no_log: true
+
+    - name: Store the saved API token for this run
+      ansible.builtin.set_fact:
+        xui_api_token: "{{ xui_existing_api_token.content | b64decode | trim }}"
+      no_log: true
+
+- name: Verify API authentication
+  ansible.builtin.uri:
+    url: "{{ xui_api_base_url }}/server/status"
+    method: GET
+    headers:
+      Authorization: "Bearer {{ xui_api_token }}"
+    return_content: true
+    status_code: 200
+  register: xui_api_auth_check
+  no_log: true
+  changed_when: false
+  check_mode: false
+  failed_when: >-
+    xui_api_auth_check.status | default(0) != 200 or
+    xui_api_auth_check.json.success | default(false) != true

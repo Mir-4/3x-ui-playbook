@@ -1,3 +1,4 @@
+---
 xui_version: "v3.7.0"
 xui_installer_path: "/var/tmp/3x-ui-install-{{ xui_version }}.sh"
 xui_install_state_path: "/etc/x-ui/ansible-installed-version"

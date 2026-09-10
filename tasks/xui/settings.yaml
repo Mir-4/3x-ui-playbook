@@ -1,0 +1,83 @@
+---
+- name: Read settings
+  ansible.builtin.uri:
+    url: "{{ xui_api_base_url }}/setting/all"
+    method: POST
+    headers:
+      Authorization: "Bearer {{ xui_api_token }}"
+    body_format: json
+    body: {}
+    status_code: 200
+  register: xui_settings_response
+  changed_when: false
+  check_mode: false
+  no_log: true
+  failed_when: >-
+    xui_settings_response.status | default(0) != 200 or
+    xui_settings_response.json.success | default(false) != true or
+    xui_settings_response.json.obj | default(none) is not mapping
+  until: xui_settings_response is succeeded
+  retries: "{{ 15 if xui_settings_action == 'verify' else 0 }}"
+  delay: 2
+  when: xui_settings_action in ['plan', 'verify']
+
+- name: Plan settings
+  when: xui_settings_action == 'plan'
+  no_log: true
+  block:
+    - name: Reject unknown managed settings
+      ansible.builtin.assert:
+        that:
+          - xui_managed_settings.keys() | difference(xui_settings_response.json.obj.keys()) | length == 0
+          - xui_managed_settings.keys() | reject('match', '^sub') | list | length == 0
+        fail_msg: Only known subscription settings are supported by this reconciliation stage.
+
+    - name: Merge managed settings with current settings
+      ansible.builtin.set_fact:
+        xui_settings_payload: "{{ xui_settings_response.json.obj | combine(xui_managed_settings) }}"
+        xui_settings_changed_keys: []
+
+    - name: List changed settings
+      ansible.builtin.set_fact:
+        xui_settings_changed_keys: "{{ xui_settings_changed_keys + [item.key] }}"
+      loop: "{{ xui_managed_settings | dict2items }}"
+      when: xui_settings_response.json.obj[item.key] != item.value
+
+    - name: Protect a disabled 2FA token
+      no_log: false
+      ansible.builtin.assert:
+        that:
+          - >-
+            xui_settings_changed_keys | length == 0 or
+            not (xui_settings_response.json.obj.hasTwoFactorToken | default(false)) or
+            xui_settings_response.json.obj.twoFactorEnable | default(false)
+        fail_msg: The API cannot preserve a saved 2FA token while 2FA is disabled.
+
+- name: Update settings
+  ansible.builtin.uri:
+    url: "{{ xui_api_base_url }}/setting/update"
+    method: POST
+    headers:
+      Authorization: "Bearer {{ xui_api_token }}"
+    body_format: json
+    body: "{{ xui_settings_payload }}"
+    status_code: 200
+  register: xui_settings_update
+  changed_when: true
+  no_log: true
+  failed_when: >-
+    xui_settings_update.status | default(0) != 200 or
+    xui_settings_update.json.success | default(false) != true
+  when:
+    - xui_settings_action == 'apply'
+    - not ansible_check_mode
+
+- name: Verify settings
+  ansible.builtin.assert:
+    that:
+      - item.key in xui_settings_response.json.obj
+      - xui_settings_response.json.obj[item.key] == item.value
+    fail_msg: Managed settings did not converge.
+  loop: "{{ xui_managed_settings | dict2items }}"
+  no_log: true
+  when: xui_settings_action == 'verify'

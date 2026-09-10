@@ -1,10 +1,10 @@
 ---
-- name: Check whether the 3x-ui binary exists
+- name: Check for the x-ui binary
   ansible.builtin.stat:
     path: /usr/local/x-ui/x-ui
   register: xui_binary
 
-- name: Read the installed 3x-ui version
+- name: Read the installed x-ui version
   ansible.builtin.command:
     argv:
       - /usr/local/x-ui/x-ui
@@ -14,19 +14,19 @@
   changed_when: false
   when: xui_binary.stat.exists
 
-- name: Record the installed and expected 3x-ui versions
+- name: Set version facts
   ansible.builtin.set_fact:
     xui_installed_version: "{{ xui_version_probe.stdout | default('') | trim }}"
     xui_expected_version: "{{ xui_version | regex_replace('^v', '') }}"
 
-- name: Decide whether 3x-ui needs installation
+- name: Decide whether installation is needed
   ansible.builtin.set_fact:
     xui_needs_install: >-
       {{ not xui_binary.stat.exists or
          (xui_version_probe.rc | default(1)) != 0 or
          xui_installed_version != xui_expected_version }}
 
-- name: Ensure the backup directory exists
+- name: Create the backup directory
   ansible.builtin.file:
     path: /var/backups/x-ui
     state: directory
@@ -41,13 +41,13 @@
       /var/backups/x-ui/x-ui-{{ ansible_date_time.iso8601_basic_short }}.db
   when: xui_needs_install
 
-- name: Check whether the 3x-ui database exists
+- name: Check for the x-ui database
   ansible.builtin.stat:
     path: /etc/x-ui/x-ui.db
   register: xui_database
   when: xui_needs_install
 
-- name: Back up the 3x-ui database before installation
+- name: Back up the database before install or upgrade
   ansible.builtin.command:
     argv:
       - sqlite3
@@ -56,7 +56,7 @@
   when: xui_needs_install and xui_database.stat.exists
   changed_when: true
 
-- name: Download the pinned 3x-ui installer
+- name: Download the pinned x-ui installer
   ansible.builtin.get_url:
     url: "{{ xui_release_script_url }}"
     dest: "{{ xui_installer_path }}"
@@ -65,7 +65,7 @@
     mode: "0700"
   when: xui_needs_install
 
-- name: Run the pinned 3x-ui installer
+- name: Install or upgrade x-ui
   ansible.builtin.command:
     cmd: "{{ xui_installer_path }} {{ xui_version }}"
   environment:
@@ -78,7 +78,7 @@
   when: xui_needs_install
   changed_when: true
 
-- name: Read the installed 3x-ui version after installation
+- name: Read the installed x-ui version
   ansible.builtin.command:
     argv:
       - /usr/local/x-ui/x-ui
@@ -87,7 +87,7 @@
   changed_when: false
   when: xui_needs_install
 
-- name: Require the requested 3x-ui version after installation
+- name: Verify the installed x-ui version
   ansible.builtin.assert:
     that:
       - (xui_version_after_install.stdout | trim) == xui_expected_version
@@ -97,7 +97,7 @@
       {{ xui_expected_version }}.
   when: xui_needs_install
 
-- name: Record the installed 3x-ui version
+- name: Save the installed version marker
   ansible.builtin.copy:
     content: "{{ xui_version }}\n"
     dest: "{{ xui_install_state_path }}"
@@ -106,7 +106,7 @@
     mode: "0600"
   when: xui_needs_install
 
-- name: Record the managed 3x-ui configuration schema
+- name: Save the configuration schema marker
   ansible.builtin.copy:
     content: "{{ xui_configuration_schema_version }}\n"
     dest: "{{ xui_configuration_state_path }}"
@@ -114,32 +114,32 @@
     group: root
     mode: "0600"
 
-- name: Ensure the 3x-ui service is enabled and running
+- name: Start and enable x-ui
   ansible.builtin.service:
     name: x-ui
     state: started
     enabled: true
 
-- name: Check the 3x-ui service
+- name: Read the x-ui service state
   ansible.builtin.systemd_service:
     name: x-ui
     state: started
     enabled: true
   register: xui_service_status
 
-- name: Verify that 3x-ui is running
+- name: Verify x-ui is active
   ansible.builtin.assert:
     that:
       - xui_service_status.status.ActiveState == "active"
     fail_msg: "The x-ui service is not active. Check: journalctl -u x-ui"
 
-- name: Read the x-ui settings
+- name: Read the panel settings
   ansible.builtin.command:
     cmd: /usr/local/x-ui/x-ui setting -show true
   register: xui_settings
   changed_when: false
 
-- name: Bind x-ui to localhost
+- name: Bind the panel to localhost
   ansible.builtin.command:
     cmd: /usr/local/x-ui/x-ui setting -listenIP 127.0.0.1
   notify: xui listen address changed

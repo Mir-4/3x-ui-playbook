@@ -1,0 +1,257 @@
+---
+# These are placeholders do not ever touch
+xui_reality_private_key: ""
+xui_reality_public_key: ""
+xui_reality_short_ids: []
+
+xui_api_token_path: "/etc/x-ui/ansible-api-token"
+xui_managed_secrets_path: "/etc/x-ui/ansible-managed-secrets.json"
+xui_api_base_url: >-
+  http://127.0.0.1:{{ xui_panel_port }}/{{ xui_panel_path }}/panel/api
+
+xui_managed_settings:
+  subEnable: true
+  subListen: "127.0.0.1"
+  subPort: "{{ xui_subscription_port | int }}"
+  subPath: "/{{ xui_subscription_path }}/"
+  subURI: "https://{{ xui_panel_domain }}/{{ xui_subscription_path }}/"
+  subJsonEnable: true
+  subJsonPath: "/{{ xui_json_path }}/"
+  subJsonURI: "https://{{ xui_panel_domain }}/{{ xui_json_path }}/"
+  subClashEnable: false
+  subEnableRouting: false
+  subDomain: ""
+  subCertFile: ""
+  subKeyFile: ""
+  subUpdates: 12
+  subEncrypt: true
+  subJsonMux: ""
+  subJsonRules: ""
+
+xui_managed_inbounds:
+  - name: reality
+    payload:
+      total: 0
+      remark: "🌐 reality"
+      enable: true
+      expiryTime: 0
+      trafficReset: never
+      trafficResetDay: 1
+      listen: "127.0.0.1"
+      port: "{{ xui_reality_port | int }}"
+      protocol: vless
+      settings:
+        decryption: none
+        fallbacks: []
+      streamSettings:
+        network: tcp
+        security: reality
+        realitySettings:
+          show: false
+          xver: 0
+          target: "127.0.0.1:{{ xui_reality_proxy_port }}"
+          serverNames:
+            - "{{ xui_reality_domain }}"
+          privateKey: "{{ xui_reality_private_key }}"
+          minClient: ""
+          maxClient: ""
+          maxTimediff: 0
+          shortIds: "{{ xui_reality_short_ids }}"
+          settings:
+            publicKey: "{{ xui_reality_public_key }}"
+            fingerprint: firefox
+            serverName: ""
+            spiderX: "/"
+        tcpSettings:
+          acceptProxyProtocol: true
+          header:
+            type: none
+      tag: "inbound-{{ xui_reality_port }}"
+      sniffing:
+        enabled: false
+        destOverride:
+          - http
+          - tls
+          - quic
+          - fakedns
+        metadataOnly: false
+        routeOnly: false
+
+  - name: websocket
+    payload:
+      total: 0
+      remark: "🌐 ws"
+      enable: true
+      expiryTime: 0
+      trafficReset: never
+      trafficResetDay: 1
+      listen: "127.0.0.1"
+      port: "{{ xui_ws_port | int }}"
+      protocol: vless
+      settings:
+        decryption: none
+        fallbacks: []
+      streamSettings:
+        network: ws
+        security: none
+        wsSettings:
+          acceptProxyProtocol: false
+          path: "/{{ xui_ws_port }}/{{ xui_ws_path }}"
+          host: "{{ xui_panel_domain }}"
+          headers: {}
+      tag: "inbound-{{ xui_ws_port }}"
+      sniffing:
+        enabled: false
+        destOverride:
+          - http
+          - tls
+          - quic
+          - fakedns
+        metadataOnly: false
+        routeOnly: false
+
+  - name: xhttp
+    payload:
+      total: 0
+      remark: "🌐 xhttp"
+      enable: false
+      expiryTime: 0
+      trafficReset: never
+      trafficResetDay: 1
+      listen: "{{ xui_xhttp_socket }},0666"
+      port: 0
+      protocol: vless
+      settings:
+        decryption: none
+        fallbacks: []
+      streamSettings:
+        network: xhttp
+        security: none
+        xhttpSettings:
+          path: "/{{ xui_xhttp_path }}"
+          host: "{{ xui_panel_domain }}"
+          headers: {}
+          scMaxBufferedPosts: 30
+          scMaxEachPostBytes: "1000000"
+          noSSEHeader: false
+          xPaddingBytes: "100-1000"
+          mode: packet-up
+        sockopt:
+          acceptProxyProtocol: false
+          tcpFastOpen: true
+          mark: 0
+          tproxy: "off"
+          tcpMptcp: true
+          tcpNoDelay: true
+          domainStrategy: UseIP
+          tcpMaxSeg: 1440
+          dialerProxy: ""
+          tcpKeepAliveInterval: 0
+          tcpKeepAliveIdle: 300
+          tcpUserTimeout: 10000
+          tcpcongestion: bbr
+          V6Only: false
+          tcpWindowClamp: 600
+          interface: ""
+      tag: "inbound-{{ xui_xhttp_socket }},0666:0|"
+      sniffing:
+        enabled: true
+        destOverride:
+          - http
+          - tls
+          - quic
+          - fakedns
+        metadataOnly: false
+        routeOnly: false
+
+  - name: trojan-grpc
+    payload:
+      total: 0
+      remark: "🌐 trojan-grpc"
+      enable: true
+      expiryTime: 0
+      trafficReset: never
+      trafficResetDay: 1
+      listen: "127.0.0.1"
+      port: "{{ xui_trojan_port | int }}"
+      protocol: trojan
+      settings:
+        fallbacks: []
+      streamSettings:
+        network: grpc
+        security: none
+        grpcSettings:
+          serviceName: "/{{ xui_trojan_port }}/{{ xui_trojan_path }}"
+          authority: "{{ xui_panel_domain }}"
+          multiMode: false
+      tag: "inbound-{{ xui_trojan_port }}"
+      sniffing:
+        enabled: false
+        destOverride:
+          - http
+          - tls
+          - quic
+          - fakedns
+        metadataOnly: false
+        routeOnly: false
+
+# groupId values stay fixed so reruns update the same host groups. inboundIds
+# are resolved from inbound_tag after the inbound API pass.
+xui_managed_host_groups:
+  - name: reality
+    inbound_tag: "inbound-{{ xui_reality_port }}"
+    payload:
+      groupId: ansiblereality01
+      sortOrder: 0
+      remark: reality
+      hosts:
+        - "{{ xui_panel_domain }}"
+      port: 443
+      security: same
+      fingerprint: ""
+      alpn: []
+
+  - name: websocket
+    inbound_tag: "inbound-{{ xui_ws_port }}"
+    payload:
+      groupId: ansiblewebsock01
+      sortOrder: 0
+      remark: ws
+      hosts:
+        - "{{ xui_panel_domain }}"
+      port: 443
+      security: tls
+      fingerprint: firefox
+      alpn:
+        - h2
+        - http/1.1
+
+  - name: xhttp
+    inbound_tag: "inbound-{{ xui_xhttp_socket }},0666:0|"
+    payload:
+      groupId: ansiblexhttp0001
+      sortOrder: 0
+      remark: xhttp
+      hosts:
+        - "{{ xui_panel_domain }}"
+      port: 443
+      security: tls
+      fingerprint: firefox
+      alpn:
+        - h2
+        - http/1.1
+
+  - name: trojan-grpc
+    inbound_tag: "inbound-{{ xui_trojan_port }}"
+    payload:
+      groupId: ansibletrojan001
+      sortOrder: 0
+      remark: trojan
+      hosts:
+        - "{{ xui_panel_domain }}"
+      port: 443
+      security: tls
+      fingerprint: firefox
+      alpn:
+        - h2
+        - http/1.1

@@ -1,0 +1,74 @@
+---
+- name: Check configuration prerequisites
+  ansible.builtin.assert:
+    that:
+      - xui_version == 'v3.7.0'
+      - xui_db_type == 'sqlite'
+      - xui_api_token | default('') | length > 0
+    fail_msg: Settings reconciliation requires v3.7.0, SQLite, and API authentication.
+  no_log: true
+
+- name: Plan settings
+  ansible.builtin.include_tasks: settings.yaml
+  vars:
+    xui_settings_action: plan
+
+- name: Check for a pending restart
+  ansible.builtin.stat:
+    path: /etc/x-ui/ansible-config-restart-pending
+  register: xui_settings_restart_pending
+
+- name: Show the settings plan
+  ansible.builtin.debug:
+    msg:
+      action: "{{ 'update' if xui_settings_changed_keys | length > 0 else 'no-op' }}"
+      fields: "{{ xui_settings_changed_keys }}"
+      restart_required: "{{ xui_settings_changed_keys | length > 0 or xui_settings_restart_pending.stat.exists }}"
+  changed_when: >-
+    ansible_check_mode and
+    (xui_settings_changed_keys | length > 0 or xui_settings_restart_pending.stat.exists)
+
+- name: Prepare settings recovery
+  ansible.builtin.include_tasks: recovery.yaml
+  vars:
+    xui_recovery_action: prepare
+  when:
+    - not ansible_check_mode
+    - xui_settings_changed_keys | length > 0
+
+- name: Apply settings
+  ansible.builtin.include_tasks: settings.yaml
+  vars:
+    xui_settings_action: apply
+  when:
+    - not ansible_check_mode
+    - xui_settings_changed_keys | length > 0
+
+- name: Restart and verify changed settings
+  when:
+    - not ansible_check_mode
+    - xui_settings_changed_keys | length > 0 or xui_settings_restart_pending.stat.exists
+  block:
+    - name: Restart x-ui
+      ansible.builtin.include_tasks: recovery.yaml
+      vars:
+        xui_recovery_action: activate
+
+    - name: Verify settings
+      ansible.builtin.include_tasks: settings.yaml
+      vars:
+        xui_settings_action: verify
+
+    - name: Clear recovery state
+      ansible.builtin.include_tasks: recovery.yaml
+      vars:
+        xui_recovery_action: complete
+
+- name: Verify unchanged settings
+  ansible.builtin.include_tasks: settings.yaml
+  vars:
+    xui_settings_action: verify
+  when:
+    - not ansible_check_mode
+    - xui_settings_changed_keys | length == 0
+    - not xui_settings_restart_pending.stat.exists

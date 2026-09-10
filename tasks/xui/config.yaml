@@ -5,13 +5,18 @@
       - xui_version == 'v3.7.0'
       - xui_db_type == 'sqlite'
       - xui_api_token | default('') | length > 0
-    fail_msg: Settings reconciliation requires v3.7.0, SQLite, and API authentication.
+    fail_msg: Configuration reconciliation requires v3.7.0, SQLite, and API authentication.
   no_log: true
+
+- name: Discover inbounds
+  ansible.builtin.include_tasks: inbounds.yaml
+  vars:
+    xui_config_phase: plan
 
 - name: Plan settings
   ansible.builtin.include_tasks: settings.yaml
   vars:
-    xui_settings_action: plan
+    xui_config_phase: plan
 
 - name: Check for a pending restart
   ansible.builtin.stat:
@@ -31,7 +36,7 @@
 - name: Prepare settings recovery
   ansible.builtin.include_tasks: recovery.yaml
   vars:
-    xui_recovery_action: prepare
+    xui_config_phase: prepare
   when:
     - not ansible_check_mode
     - xui_settings_changed_keys | length > 0
@@ -39,7 +44,7 @@
 - name: Apply settings
   ansible.builtin.include_tasks: settings.yaml
   vars:
-    xui_settings_action: apply
+    xui_config_phase: apply
   when:
     - not ansible_check_mode
     - xui_settings_changed_keys | length > 0
@@ -52,22 +57,22 @@
     - name: Restart x-ui
       ansible.builtin.include_tasks: recovery.yaml
       vars:
-        xui_recovery_action: activate
+        xui_config_phase: activate
 
     - name: Verify settings
       ansible.builtin.include_tasks: settings.yaml
       vars:
-        xui_settings_action: verify
+        xui_config_phase: verify
 
     - name: Clear recovery state
       ansible.builtin.include_tasks: recovery.yaml
       vars:
-        xui_recovery_action: complete
+        xui_config_phase: complete
 
 - name: Verify unchanged settings
   ansible.builtin.include_tasks: settings.yaml
   vars:
-    xui_settings_action: verify
+    xui_config_phase: verify
   when:
     - not ansible_check_mode
     - xui_settings_changed_keys | length == 0

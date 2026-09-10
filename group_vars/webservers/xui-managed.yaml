@@ -66,7 +66,7 @@ xui_managed_inbounds:
           acceptProxyProtocol: true
           header:
             type: none
-      tag: "inbound-{{ xui_reality_port }}"
+      tag: ansible-reality
       sniffing:
         enabled: false
         destOverride:
@@ -99,7 +99,7 @@ xui_managed_inbounds:
           path: "/{{ xui_ws_port }}/{{ xui_ws_path }}"
           host: "{{ xui_panel_domain }}"
           headers: {}
-      tag: "inbound-{{ xui_ws_port }}"
+      tag: ansible-websocket
       sniffing:
         enabled: false
         destOverride:
@@ -153,7 +153,7 @@ xui_managed_inbounds:
           V6Only: false
           tcpWindowClamp: 600
           interface: ""
-      tag: "inbound-{{ xui_xhttp_socket }},0666:0|"
+      tag: ansible-xhttp
       sniffing:
         enabled: true
         destOverride:
@@ -184,7 +184,7 @@ xui_managed_inbounds:
           serviceName: "/{{ xui_trojan_port }}/{{ xui_trojan_path }}"
           authority: "{{ xui_panel_domain }}"
           multiMode: false
-      tag: "inbound-{{ xui_trojan_port }}"
+      tag: ansible-trojan-grpc
       sniffing:
         enabled: false
         destOverride:
@@ -199,7 +199,7 @@ xui_managed_inbounds:
 # are resolved from inbound_tag after the inbound API pass.
 xui_managed_host_groups:
   - name: reality
-    inbound_tag: "inbound-{{ xui_reality_port }}"
+    inbound_tag: ansible-reality
     payload:
       groupId: ansiblereality01
       sortOrder: 0
@@ -212,7 +212,7 @@ xui_managed_host_groups:
       alpn: []
 
   - name: websocket
-    inbound_tag: "inbound-{{ xui_ws_port }}"
+    inbound_tag: ansible-websocket
     payload:
       groupId: ansiblewebsock01
       sortOrder: 0
@@ -227,7 +227,7 @@ xui_managed_host_groups:
         - http/1.1
 
   - name: xhttp
-    inbound_tag: "inbound-{{ xui_xhttp_socket }},0666:0|"
+    inbound_tag: ansible-xhttp
     payload:
       groupId: ansiblexhttp0001
       sortOrder: 0
@@ -242,7 +242,7 @@ xui_managed_host_groups:
         - http/1.1
 
   - name: trojan-grpc
-    inbound_tag: "inbound-{{ xui_trojan_port }}"
+    inbound_tag: ansible-trojan-grpc
     payload:
       groupId: ansibletrojan001
       sortOrder: 0

@@ -17,12 +17,12 @@
     xui_settings_response.json.success | default(false) != true or
     xui_settings_response.json.obj | default(none) is not mapping
   until: xui_settings_response is succeeded
-  retries: "{{ 15 if xui_settings_action == 'verify' else 0 }}"
+  retries: "{{ 15 if xui_config_phase == 'verify' else 0 }}"
   delay: 2
-  when: xui_settings_action in ['plan', 'verify']
+  when: xui_config_phase in ['plan', 'verify']
 
 - name: Plan settings
-  when: xui_settings_action == 'plan'
+  when: xui_config_phase == 'plan'
   no_log: true
   block:
     - name: Reject unknown managed settings
@@ -69,7 +69,7 @@
     xui_settings_update.status | default(0) != 200 or
     xui_settings_update.json.success | default(false) != true
   when:
-    - xui_settings_action == 'apply'
+    - xui_config_phase == 'apply'
     - not ansible_check_mode
 
 - name: Verify settings
@@ -80,4 +80,4 @@
     fail_msg: Managed settings did not converge.
   loop: "{{ xui_managed_settings | dict2items }}"
   no_log: true
-  when: xui_settings_action == 'verify'
+  when: xui_config_phase == 'verify'

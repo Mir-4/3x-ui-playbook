@@ -1,0 +1,205 @@
+---
+- name: Require inbound planning mode
+  ansible.builtin.assert:
+    that:
+      - xui_config_phase == 'plan'
+    fail_msg: Inbound reconciliation is read-only until its apply phase is implemented.
+
+- name: Validate managed inbound identities
+  ansible.builtin.assert:
+    that:
+      - item.name | default('') | length > 0
+      - item.payload | default(none) is mapping
+      - item.payload.tag | default('') is match('^ansible-[a-z0-9-]+$')
+      - item.payload.listen | default(none) is string
+      - item.payload.port | default(none) is number
+    fail_msg: Each managed inbound needs a name, fixed tag, listener, and numeric port.
+  loop: "{{ xui_managed_inbounds }}"
+  loop_control:
+    label: "{{ item.name | default('invalid') }}"
+  no_log: true
+
+- name: Collect managed inbound identities
+  ansible.builtin.set_fact:
+    xui_managed_inbound_names: >-
+      {{ xui_managed_inbounds | map(attribute='name') | list }}
+    xui_managed_inbound_tags: >-
+      {{ xui_managed_inbounds | map(attribute='payload.tag') | list }}
+    xui_managed_inbound_listener_keys: []
+
+- name: Collect managed listener identities
+  ansible.builtin.set_fact:
+    xui_managed_inbound_listener_keys: >-
+      {{ xui_managed_inbound_listener_keys
+         + [item.payload.listen ~ ':' ~ (item.payload.port | string)] }}
+  loop: "{{ xui_managed_inbounds }}"
+  loop_control:
+    label: "{{ item.name }}"
+  no_log: true
+
+- name: Reject duplicate managed identities
+  ansible.builtin.assert:
+    that:
+      - xui_managed_inbound_names | unique | length == xui_managed_inbound_names | length
+      - xui_managed_inbound_tags | unique | length == xui_managed_inbound_tags | length
+      - >-
+        xui_managed_inbound_listener_keys | unique | length
+        == xui_managed_inbound_listener_keys | length
+    fail_msg: Managed inbound names, tags, and listeners must be unique.
+
+- name: Read inbounds
+  ansible.builtin.uri:
+    url: "{{ xui_api_base_url }}/inbounds/list"
+    method: GET
+    headers:
+      Authorization: "Bearer {{ xui_api_token }}"
+    return_content: true
+    status_code: 200
+  register: xui_inbounds_response
+  changed_when: false
+  check_mode: false
+  no_log: true
+  failed_when: >-
+    xui_inbounds_response.status | default(0) != 200 or
+    xui_inbounds_response.json.success | default(false) != true or
+    xui_inbounds_response.json.obj | default(none) is not sequence or
+    xui_inbounds_response.json.obj | default(none) is string
+
+- name: Validate inbound response fields
+  ansible.builtin.assert:
+    that:
+      - item is mapping
+      - item.id | default(none) is number
+      - item.tag | default(none) is string
+      - item.listen | default(none) is string
+      - item.port | default(none) is number
+      - item.settings | default(none) is string
+      - item.streamSettings | default(none) is string
+      - item.sniffing | default(none) is string
+    fail_msg: The inbound API returned an unsupported record shape.
+  loop: "{{ xui_inbounds_response.json.obj }}"
+  loop_control:
+    label: "{{ item.id | default('unknown') }}"
+  no_log: true
+
+- name: Initialize decoded inbounds
+  ansible.builtin.set_fact:
+    xui_discovered_inbounds: []
+
+- name: Decode inbound JSON fields
+  ansible.builtin.set_fact:
+    xui_discovered_inbounds: >-
+      {{ xui_discovered_inbounds
+         + [item | combine({
+           'settings': item.settings | from_json,
+           'streamSettings': item.streamSettings | from_json,
+           'sniffing': item.sniffing | from_json
+         })] }}
+  loop: "{{ xui_inbounds_response.json.obj }}"
+  loop_control:
+    label: "{{ item.id }}"
+  no_log: true
+
+- name: Validate decoded inbound fields
+  ansible.builtin.assert:
+    that:
+      - item.settings is mapping
+      - item.streamSettings is mapping
+      - item.sniffing is mapping
+    fail_msg: An inbound contains invalid settings JSON.
+  loop: "{{ xui_discovered_inbounds }}"
+  loop_control:
+    label: "{{ item.id }}"
+  no_log: true
+
+- name: Collect current inbound tags
+  ansible.builtin.set_fact:
+    xui_discovered_inbound_tags: >-
+      {{ xui_discovered_inbounds | map(attribute='tag') | list }}
+
+- name: Reject duplicate current tags
+  ansible.builtin.assert:
+    that:
+      - >-
+        xui_discovered_inbound_tags | unique | length
+        == xui_discovered_inbound_tags | length
+    fail_msg: The inbound API returned duplicate tags. Resolve them before reconciliation.
+
+- name: Initialize inbound discovery results
+  ansible.builtin.set_fact:
+    xui_existing_managed_inbounds: []
+    xui_managed_inbound_tag_counts: []
+    xui_unmanaged_inbound_listener_conflicts: []
+  no_log: true
+
+- name: Count managed inbound tags
+  ansible.builtin.set_fact:
+    xui_managed_inbound_tag_counts: >-
+      {{ xui_managed_inbound_tag_counts
+         + [{
+           'name': item.name,
+           'tag': item.payload.tag,
+           'count': xui_discovered_inbounds
+             | selectattr('tag', 'equalto', item.payload.tag)
+             | list
+             | length
+         }] }}
+  loop: "{{ xui_managed_inbounds }}"
+  loop_control:
+    label: "{{ item.name }}"
+  no_log: true
+
+- name: Collect existing managed inbounds
+  ansible.builtin.set_fact:
+    xui_existing_managed_inbounds: >-
+      {{ xui_existing_managed_inbounds
+         + [xui_discovered_inbounds
+           | selectattr('tag', 'equalto', item.payload.tag)
+           | first] }}
+  loop: "{{ xui_managed_inbounds }}"
+  loop_control:
+    label: "{{ item.name }}"
+  when: >-
+    xui_discovered_inbounds
+    | selectattr('tag', 'equalto', item.payload.tag)
+    | list
+    | length == 1
+  no_log: true
+
+- name: Find unmanaged listener conflicts
+  ansible.builtin.set_fact:
+    xui_unmanaged_inbound_listener_conflicts: >-
+      {{ xui_unmanaged_inbound_listener_conflicts
+         + [{
+           'managed_name': item.1.name,
+           'existing_id': item.0.id,
+           'existing_tag': item.0.tag,
+           'listen': item.0.listen,
+           'port': item.0.port
+         }] }}
+  loop: "{{ xui_discovered_inbounds | product(xui_managed_inbounds) | list }}"
+  loop_control:
+    label: "{{ item.1.name }}"
+  when:
+    - item.0.tag not in xui_managed_inbound_tags
+    - item.0.port | int == item.1.payload.port | int
+    - >-
+      item.0.listen == item.1.payload.listen or
+      item.0.listen in ['', '0.0.0.0', '::', '[::]'] or
+      item.1.payload.listen in ['', '0.0.0.0', '::', '[::]']
+  no_log: true
+
+- name: Reject unmanaged listener conflicts
+  ansible.builtin.assert:
+    that:
+      - xui_unmanaged_inbound_listener_conflicts | length == 0
+    fail_msg: >-
+      Unmanaged inbounds occupy managed listeners:
+      {{ xui_unmanaged_inbound_listener_conflicts }}
+
+- name: Show inbound discovery
+  ansible.builtin.debug:
+    msg:
+      current_count: "{{ xui_discovered_inbounds | length }}"
+      managed_tags: "{{ xui_managed_inbound_tag_counts }}"
+  changed_when: false

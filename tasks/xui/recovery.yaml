@@ -1,6 +1,6 @@
 ---
 - name: Prepare recovery
-  when: xui_recovery_action == 'prepare'
+  when: xui_config_phase == 'prepare'
   block:
     - name: Inspect the SQLite database
       ansible.builtin.stat:
@@ -56,10 +56,10 @@
   ansible.builtin.systemd_service:
     name: x-ui
     state: restarted
-  when: xui_recovery_action == 'activate'
+  when: xui_config_phase == 'activate'
 
 - name: Clear the pending restart
   ansible.builtin.file:
     path: /etc/x-ui/ansible-config-restart-pending
     state: absent
-  when: xui_recovery_action == 'complete'
+  when: xui_config_phase == 'complete'

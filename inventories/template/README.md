@@ -2,18 +2,11 @@
 
 This directory is safe to commit. It contains placeholder host and deployment values.
 
-To create your private inventory:
+Use this directory as a reference for whatever private inventory layout you choose.
+For local-only experiments, copy it outside the repository or into another ignored path.
+
+Example run after copying and filling values:
 
 ```bash
-cp -a inventories/template inventories/real
-$EDITOR inventories/real/hosts.yml
-$EDITOR inventories/real/group_vars/webservers/deployment.yml
+ansible-playbook -i /path/to/private/hosts.yml playbook.yaml
 ```
-
-Run the playbook with:
-
-```bash
-ansible-playbook -i inventories/real/hosts.yml playbook.yaml
-```
-
-`inventories/real/` is ignored by Git and should contain real hosts, domains, and persistent generated values.

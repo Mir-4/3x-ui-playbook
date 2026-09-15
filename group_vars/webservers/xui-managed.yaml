@@ -211,7 +211,7 @@ xui_managed_host_groups:
       sortOrder: 0
       remark: reality
       hosts:
-        - "{{ xui_reality_domain }}"
+        - "{{ xui_reality_domain }}:443"
       port: 443
       security: same
       fingerprint: firefox
@@ -227,7 +227,7 @@ xui_managed_host_groups:
       sortOrder: 0
       remark: ws
       hosts:
-        - "{{ xui_panel_domain }}"
+        - "{{ xui_panel_domain }}:443"
       port: 443
       security: tls
       fingerprint: firefox
@@ -244,7 +244,7 @@ xui_managed_host_groups:
       sortOrder: 0
       remark: xhttp
       hosts:
-        - "{{ xui_panel_domain }}"
+        - "{{ xui_panel_domain }}:443"
       port: 443
       security: tls
       fingerprint: firefox
@@ -261,7 +261,7 @@ xui_managed_host_groups:
       sortOrder: 0
       remark: trojan
       hosts:
-        - "{{ xui_panel_domain }}"
+        - "{{ xui_panel_domain }}:443"
       port: 443
       security: tls
       fingerprint: firefox

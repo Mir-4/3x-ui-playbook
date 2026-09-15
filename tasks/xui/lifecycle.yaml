@@ -133,15 +133,18 @@
       - xui_service_status.status.ActiveState == "active"
     fail_msg: "The x-ui service is not active. Check: journalctl -u x-ui"
 
-- name: Read the panel settings
+- name: Read the panel listen address
   ansible.builtin.command:
-    cmd: /usr/local/x-ui/x-ui setting -show true
-  register: xui_settings
+    argv:
+      - sqlite3
+      - /etc/x-ui/x-ui.db
+      - "select value from settings where key = 'webListen';"
+  register: xui_panel_listen_setting
   changed_when: false
 
 - name: Bind the panel to localhost
   ansible.builtin.command:
     cmd: /usr/local/x-ui/x-ui setting -listenIP 127.0.0.1
   notify: xui listen address changed
-  when: "'listenIP: 127.0.0.1' not in xui_settings.stdout"
+  when: xui_panel_listen_setting.stdout | trim != '127.0.0.1'
   changed_when: true

@@ -6,7 +6,34 @@ location = /{{ xui_subscription_path }} {
     proxy_pass http://127.0.0.1:{{ xui_subscription_port }};
 }
 
-location ^~ /{{ xui_subscription_path }}/ {
+location ~ ^/{{ xui_subscription_path }}/(?<xui_subscription_id>[^/]+)$ {
+    if ($xui_serve_clash_yaml = 1) {
+        rewrite ^ /{{ xui_clash_path }}/$xui_subscription_id last;
+    }
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto https;
+    proxy_pass http://127.0.0.1:{{ xui_subscription_port }};
+}
+
+location /{{ xui_subscription_path }}/ {
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto https;
+    proxy_pass http://127.0.0.1:{{ xui_subscription_port }};
+}
+
+location = /{{ xui_clash_path }} {
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto https;
+    proxy_pass http://127.0.0.1:{{ xui_subscription_port }};
+}
+
+location ^~ /{{ xui_clash_path }}/ {
     proxy_set_header Host $host;
     proxy_set_header X-Real-IP $remote_addr;
     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -76,5 +103,7 @@ location = /{{ route.transport_path }} {
 {% endfor %}
 
 location / {
-    return 404;
+    root {{ xui_fake_site_root }};
+    index index.html;
+    try_files $uri $uri/ /index.html;
 }

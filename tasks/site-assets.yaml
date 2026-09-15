@@ -1,0 +1,16 @@
+---
+- name: Create fake site directory
+  ansible.builtin.file:
+    path: "{{ xui_fake_site_root }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install fake site index
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/files/fake-site/index.html"
+    dest: "{{ xui_fake_site_root }}/index.html"
+    owner: root
+    group: root
+    mode: "0644"

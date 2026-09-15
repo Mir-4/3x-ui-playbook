@@ -2,3 +2,13 @@ map $http_upgrade $xui_connection_upgrade {
     default upgrade;
     '' close;
 }
+
+map $http_user_agent $xui_is_clash_user_agent {
+    default 0;
+    ~*(clash|clashx|clashn|mihomo|stash|surfboard) 1;
+}
+
+map "$xui_is_clash_user_agent:$arg_provider" $xui_serve_clash_yaml {
+    default 0;
+    "1:" 1;
+}

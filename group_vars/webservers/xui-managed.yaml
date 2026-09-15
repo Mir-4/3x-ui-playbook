@@ -18,7 +18,13 @@ xui_managed_settings:
   subJsonEnable: true
   subJsonPath: "/{{ xui_json_path }}/"
   subJsonURI: "https://{{ xui_panel_domain }}/{{ xui_json_path }}/"
-  subClashEnable: false
+  subClashEnable: true
+  subClashPath: "/{{ xui_clash_path }}/"
+  subClashURI: "https://{{ xui_panel_domain }}/{{ xui_clash_path }}/"
+  subClashAutoDetect: false
+  subClashEnableRouting: false
+  subClashUserAgentRegex: "(?i)(clash|clashx|clashn|mihomo|stash|surfboard)"
+  subClashRules: ""
   subEnableRouting: false
   subDomain: ""
   subCertFile: ""
@@ -205,11 +211,14 @@ xui_managed_host_groups:
       sortOrder: 0
       remark: reality
       hosts:
-        - "{{ xui_panel_domain }}"
+        - "{{ xui_reality_domain }}"
       port: 443
       security: same
-      fingerprint: ""
-      alpn: []
+      fingerprint: firefox
+      sni: "{{ xui_reality_domain }}"
+      alpn:
+        - h2
+        - http/1.1
 
   - name: websocket
     inbound_tag: ansible-websocket
@@ -222,6 +231,8 @@ xui_managed_host_groups:
       port: 443
       security: tls
       fingerprint: firefox
+      sni: "{{ xui_panel_domain }}"
+      path: "/{{ xui_ws_port }}/{{ xui_ws_path }}"
       alpn:
         - h2
         - http/1.1
@@ -237,6 +248,8 @@ xui_managed_host_groups:
       port: 443
       security: tls
       fingerprint: firefox
+      sni: "{{ xui_panel_domain }}"
+      path: "/{{ xui_xhttp_path }}"
       alpn:
         - h2
         - http/1.1
@@ -252,6 +265,8 @@ xui_managed_host_groups:
       port: 443
       security: tls
       fingerprint: firefox
+      sni: "{{ xui_panel_domain }}"
+      path: "/{{ xui_trojan_port }}/{{ xui_trojan_path }}"
       alpn:
         - h2
         - http/1.1

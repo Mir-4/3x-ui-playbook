@@ -230,14 +230,14 @@
            'id': current_inbound.id | default(none),
            'action': (
              'create' if current_matches | length == 0
-             else 'no-op' if current_payload_subset == item.payload
+             else 'no-op' if current_payload_subset == desired_payload
              else 'update'
            ),
-           'desired_payload': item.payload,
-           'api_payload': item.payload | combine({
-             'settings': item.payload.settings | to_json,
-             'streamSettings': item.payload.streamSettings | to_json,
-             'sniffing': item.payload.sniffing | to_json
+           'desired_payload': desired_payload,
+           'api_payload': desired_payload | combine({
+             'settings': desired_payload.settings | to_json,
+             'streamSettings': desired_payload.streamSettings | to_json,
+             'sniffing': desired_payload.sniffing | to_json
            })
          }] }}
   vars:
@@ -246,6 +246,16 @@
          | selectattr('tag', 'equalto', item.payload.tag)
          | list }}
     current_inbound: "{{ current_matches | first | default({}) }}"
+    desired_settings: >-
+      {{ item.payload.settings
+         | combine(
+           {'clients': current_inbound.settings.clients},
+           recursive=true
+         )
+         if current_matches | length == 1 and
+            current_inbound.settings.clients is defined
+         else item.payload.settings }}
+    desired_payload: "{{ item.payload | combine({'settings': desired_settings}) }}"
     current_payload_subset: >-
       {{ current_inbound
          | dict2items

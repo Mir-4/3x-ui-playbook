@@ -18,6 +18,9 @@ inventory/
 *.key
 id_rsa*
 id_ed25519*
+vault
+group_vars/**/vault*.yaml
+group_vars/**/vault*.yml
 
 # Python tooling and caches
 __pycache__/

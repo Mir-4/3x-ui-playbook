@@ -8,6 +8,9 @@
     fail_msg: Configuration reconciliation requires v3.7.0, SQLite, and API authentication.
   no_log: true
 
+- name: Prepare managed secrets
+  ansible.builtin.include_tasks: secrets.yaml
+
 - name: Discover inbounds
   ansible.builtin.include_tasks: inbounds.yaml
   vars:
@@ -17,6 +20,11 @@
   ansible.builtin.include_tasks: settings.yaml
   vars:
     xui_config_phase: plan
+
+- name: Remember planned inbound changes
+  ansible.builtin.set_fact:
+    xui_had_managed_inbound_changes: "{{ xui_managed_inbound_changes | length > 0 }}"
+  no_log: true
 
 - name: Apply inbound changes
   ansible.builtin.include_tasks: inbounds.yaml
@@ -28,6 +36,52 @@
 
 - name: Verify inbound changes
   ansible.builtin.include_tasks: inbounds.yaml
+  vars:
+    xui_config_phase: verify
+  when:
+    - not ansible_check_mode
+
+- name: Verify x-ui remains active after inbound reconciliation
+  ansible.builtin.systemd_service:
+    name: x-ui
+    state: started
+    enabled: true
+  register: xui_after_inbound_service_status
+  when:
+    - not ansible_check_mode
+    - xui_had_managed_inbound_changes | default(false) | bool
+
+- name: Assert x-ui is active after inbound reconciliation
+  ansible.builtin.assert:
+    that:
+      - xui_after_inbound_service_status.status.ActiveState == 'active'
+    fail_msg: "The x-ui service is not active after inbound reconciliation. Check: journalctl -u x-ui"
+  when:
+    - not ansible_check_mode
+    - xui_after_inbound_service_status is defined
+    - not xui_after_inbound_service_status.skipped | default(false)
+
+- name: Initialize host group changes
+  ansible.builtin.set_fact:
+    xui_managed_host_group_changes: []
+  no_log: true
+
+- name: Plan host groups
+  ansible.builtin.include_tasks: hosts.yaml
+  vars:
+    xui_config_phase: plan
+  when: not (ansible_check_mode and xui_had_managed_inbound_changes | default(false) | bool)
+
+- name: Apply host group changes
+  ansible.builtin.include_tasks: hosts.yaml
+  vars:
+    xui_config_phase: apply
+  when:
+    - not ansible_check_mode
+    - xui_managed_host_group_changes | length > 0
+
+- name: Verify host group changes
+  ansible.builtin.include_tasks: hosts.yaml
   vars:
     xui_config_phase: verify
   when:

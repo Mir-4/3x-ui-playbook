@@ -32,7 +32,25 @@ xui_json_path: "json-a86e31bc"
 xui_xhttp_path: "xhttp-b72d90ef"
 xui_ws_path: "ws-ef84a1c2"
 xui_trojan_path: "grpc-1d6ab9e0"
+xui_clash_path: "clash-54d1f75a"
 xui_xhttp_socket: "/dev/shm/uds2023.sock"
+xui_fake_site_root: "/var/lib/3x-ui/fake-site"
+xui_backup_dir: "/var/backups/3x-ui-playbook"
+xui_backup_keep_archives: 5
+xui_backup_paths:
+  - /etc/x-ui
+  - /usr/local/x-ui
+  - /usr/bin/x-ui
+  - /etc/letsencrypt
+  - "{{ xui_nginx_include_dir }}"
+  - /etc/nginx/snippets/3x-ui-includes.conf
+  - /etc/nginx/conf.d/00-3x-ui-maps.conf
+  - /etc/nginx/sites-available/3x-ui-panel.conf
+  - /etc/nginx/sites-available/3x-ui-reality.conf
+  - /etc/nginx/sites-enabled/3x-ui-panel.conf
+  - /etc/nginx/sites-enabled/3x-ui-reality.conf
+  - "{{ xui_fake_site_root }}"
+  - /etc/ufw
 
 xui_nginx_listener_ports:
   - "{{ xui_panel_port }}"
@@ -49,6 +67,7 @@ xui_nginx_path_segments:
   - "{{ xui_xhttp_path }}"
   - "{{ xui_ws_path }}"
   - "{{ xui_trojan_path }}"
+  - "{{ xui_clash_path }}"
 
 xui_acme_webroot: "/var/lib/3x-ui/acme-webroot"
 xui_certificate_minimum_validity_seconds: 604800
@@ -88,6 +107,14 @@ xui_service_registry:
     transport_path: "{{ xui_json_path }}"
     tls_mode: terminated
     nginx_route: subscription-json
+  - name: subscription-clash
+    protocol: http
+    local_listener: "127.0.0.1:{{ xui_subscription_port }}"
+    public_domain: "{{ xui_panel_domain }}"
+    public_port: 443
+    transport_path: "{{ xui_clash_path }}"
+    tls_mode: terminated
+    nginx_route: subscription-clash
   - name: vless-xhttp
     protocol: grpc
     local_listener: "unix:{{ xui_xhttp_socket }}"

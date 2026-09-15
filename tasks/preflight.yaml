@@ -20,6 +20,7 @@
       - xui_nginx_listener_ports | map("int") | unique | list | length == xui_nginx_listener_ports | length
       - xui_nginx_path_segments | select("match", "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$") | list | length == xui_nginx_path_segments | length
       - xui_xhttp_socket is match("^/")
+      - xui_fake_site_root is match("^/")
       - xui_panel_certificate_dir is match("^/")
       - xui_reality_certificate_dir is match("^/")
       - xui_acme_webroot is match("^/")

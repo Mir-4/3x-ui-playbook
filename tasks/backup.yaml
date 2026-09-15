@@ -1,0 +1,132 @@
+---
+- name: Create backup directory
+  ansible.builtin.file:
+    path: "{{ xui_backup_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+
+- name: Read backup timestamp
+  ansible.builtin.command:
+    argv: [date, -u, '+%Y%m%dT%H%M%SZ']
+  register: xui_backup_time
+  changed_when: false
+
+- name: Set backup archive path
+  ansible.builtin.set_fact:
+    xui_backup_archive_path: >-
+      {{ xui_backup_archive_path | default(xui_backup_dir ~ '/3x-ui-playbook-' ~ xui_backup_time.stdout ~ '.tar.gz') }}
+
+- name: Inspect backup paths
+  ansible.builtin.stat:
+    path: "{{ item }}"
+    follow: false
+  loop: "{{ xui_backup_paths }}"
+  register: xui_backup_path_stats
+
+- name: Build backup manifest
+  ansible.builtin.set_fact:
+    xui_backup_existing_paths: >-
+      {{ xui_backup_path_stats.results
+         | selectattr('stat.exists')
+         | map(attribute='item')
+         | list }}
+    xui_backup_missing_paths: >-
+      {{ xui_backup_path_stats.results
+         | rejectattr('stat.exists')
+         | map(attribute='item')
+         | list }}
+
+- name: Require at least one backup path
+  ansible.builtin.assert:
+    that:
+      - xui_backup_existing_paths | length > 0
+    fail_msg: None of the configured backup paths exist.
+
+- name: Create backup staging directory
+  ansible.builtin.tempfile:
+    state: directory
+    path: /var/tmp
+    prefix: 3x-ui-backup-
+  register: xui_backup_stage
+
+- name: Write backup metadata
+  ansible.builtin.copy:
+    dest: "{{ xui_backup_stage.path }}/metadata.json"
+    owner: root
+    group: root
+    mode: "0600"
+    content: |
+      {{ {
+        'schema': 1,
+        'created_at_utc': xui_backup_time.stdout,
+        'hostname': ansible_facts.hostname | default(inventory_hostname),
+        'xui_version': xui_version,
+        'configuration_schema_version': xui_configuration_schema_version,
+        'panel_domain': xui_panel_domain,
+        'reality_domain': xui_reality_domain,
+        'included_paths': xui_backup_existing_paths,
+        'missing_paths': xui_backup_missing_paths
+      } | to_nice_json }}
+
+- name: Write backup manifest
+  ansible.builtin.copy:
+    dest: "{{ xui_backup_stage.path }}/manifest.txt"
+    owner: root
+    group: root
+    mode: "0600"
+    content: |
+      {% for path in xui_backup_existing_paths %}
+      {{ path }}
+      {% endfor %}
+
+- name: Create backup archive
+  ansible.builtin.command:
+    argv: >-
+      {{ ['tar', '--create', '--gzip', '--file', xui_backup_archive_path,
+          '--warning=no-file-changed', '--ignore-failed-read', '--directory', '/']
+         + (xui_backup_existing_paths | map('regex_replace', '^/', '') | list)
+         + ['--directory', xui_backup_stage.path, 'metadata.json', 'manifest.txt'] }}
+  changed_when: true
+
+- name: Validate backup archive
+  ansible.builtin.command:
+    argv:
+      - tar
+      - --list
+      - --gzip
+      - --file
+      - "{{ xui_backup_archive_path }}"
+  register: xui_backup_archive_listing
+  changed_when: false
+
+- name: Find existing deployment backup archives
+  ansible.builtin.find:
+    paths: "{{ xui_backup_dir }}"
+    patterns: "3x-ui-playbook-*.tar.gz"
+    file_type: file
+  register: xui_backup_archives
+
+- name: Prune old deployment backup archives
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: absent
+  loop: >-
+    {{ (xui_backup_archives.files | sort(attribute='mtime', reverse=true))[xui_backup_keep_archives | int :] }}
+  loop_control:
+    label: "{{ item.path }}"
+  when: xui_backup_keep_archives | int > 0
+
+- name: Report backup archive
+  ansible.builtin.debug:
+    msg:
+      archive: "{{ xui_backup_archive_path }}"
+      entries: "{{ xui_backup_archive_listing.stdout_lines | length }}"
+      missing_paths: "{{ xui_backup_missing_paths }}"
+      retained_archives: "{{ xui_backup_keep_archives }}"
+
+- name: Remove backup staging directory
+  ansible.builtin.file:
+    path: "{{ xui_backup_stage.path }}"
+    state: absent

@@ -2,7 +2,11 @@
 - name: Install deployment packages
   ansible.builtin.apt:
     update_cache: true
-    name:
+    name: "{{ xui_host_packages }}"
+    state: present
+    install_recommends: false
+  vars:
+    xui_host_packages:
       - curl
       - wget
       - jq
@@ -18,8 +22,6 @@
       - python3
       - libcap2-bin
       - ca-certificates
-    state: present
-    install_recommends: false
 
 - name: Configure public firewall rules
   community.general.ufw:

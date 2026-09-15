@@ -38,6 +38,9 @@
     - name: Manage TLS certificates
       ansible.builtin.import_tasks: tasks/certificates.yaml
 
+    - name: Install site assets
+      ansible.builtin.import_tasks: tasks/site-assets.yaml
+
     - name: Configure two-domain Nginx
       ansible.builtin.import_tasks: tasks/nginx.yaml
 
@@ -46,3 +49,9 @@
 
     - name: Reconcile 3x-ui configuration
       ansible.builtin.import_tasks: tasks/xui/config.yaml
+
+    - name: Create a deployment backup
+      ansible.builtin.import_tasks: tasks/backup.yaml
+      tags:
+        - never
+        - backup

@@ -1,0 +1,15 @@
+---
+# Copy inventories/template/ to inventories/real/ and fill these values there.
+# Do not put real deployment identity or secrets in this template.
+
+xui_panel_domain: "panel.example.com"
+xui_reality_domain: "cdn.example.com"
+certbot_email: "admin@example.com"
+
+# Persistent values. Generate once and keep stable across playbook runs.
+# Store the real values only in inventories/real/group_vars/webservers/deployment.yml
+# or in an Ansible Vault file loaded from that directory.
+xui_reality_private_key: "CHANGE_ME"
+xui_reality_public_key: "CHANGE_ME"
+xui_reality_short_ids:
+  - "CHANGE_ME"

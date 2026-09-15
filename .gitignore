@@ -12,6 +12,7 @@ vault_password_file
 *.secret
 *.secrets
 inventory/
+inventories/real/
 
 # Private keys and certificates
 *.pem

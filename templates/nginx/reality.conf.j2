@@ -7,5 +7,9 @@ server {
     ssl_certificate {{ xui_reality_certificate_dir }}/fullchain.pem;
     ssl_certificate_key {{ xui_reality_certificate_dir }}/privkey.pem;
 
-    include /etc/nginx/snippets/3x-ui-includes.conf;
+    location / {
+        root {{ xui_fake_site_root }};
+        index index.html;
+        try_files $uri $uri/ /index.html;
+    }
 }

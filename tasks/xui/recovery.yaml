@@ -52,10 +52,36 @@
         group: root
         mode: "0600"
 
-- name: Restart x-ui
+- name: Restart x-ui asynchronously
+  ansible.builtin.command:
+    argv:
+      - systemctl
+      - restart
+      - x-ui
+  async: 45
+  poll: 0
+  changed_when: true
+  when: xui_config_phase == 'activate'
+
+- name: Wait for SSH after x-ui restart
+  ansible.builtin.wait_for_connection:
+    delay: 2
+    timeout: 60
+  when: xui_config_phase == 'activate'
+
+- name: Verify x-ui after restart
   ansible.builtin.systemd_service:
     name: x-ui
-    state: restarted
+    state: started
+    enabled: true
+  register: xui_restarted_service
+  when: xui_config_phase == 'activate'
+
+- name: Assert x-ui is active after restart
+  ansible.builtin.assert:
+    that:
+      - xui_restarted_service.status.ActiveState == 'active'
+    fail_msg: "The x-ui service is not active after restart. Check: journalctl -u x-ui"
   when: xui_config_phase == 'activate'
 
 - name: Clear the pending restart

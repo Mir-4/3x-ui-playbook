@@ -22,9 +22,54 @@ xui_managed_settings:
   subClashPath: "/{{ xui_clash_path }}/"
   subClashURI: "https://{{ xui_panel_domain }}/{{ xui_clash_path }}/"
   subClashAutoDetect: false
-  subClashEnableRouting: false
+  subClashEnableRouting: true
   subClashUserAgentRegex: "(?i)(clash|clashx|clashn|mihomo|stash|surfboard)"
-  subClashRules: ""
+  subClashRules: |-
+    rule-providers:
+      runetfreedom-private-ip:
+        type: http
+        behavior: ipcidr
+        format: text
+        url: https://raw.githubusercontent.com/runetfreedom/russia-blocked-geoip/release/clash/ipcidr/private.txt
+        path: ./rule-providers/runetfreedom-private-ip.txt
+        interval: 21600
+      runetfreedom-ru-ip:
+        type: http
+        behavior: ipcidr
+        format: text
+        url: https://raw.githubusercontent.com/runetfreedom/russia-blocked-geoip/release/clash/ipcidr/ru.txt
+        path: ./rule-providers/runetfreedom-ru-ip.txt
+        interval: 21600
+      legiz-games-direct:
+        type: http
+        behavior: classical
+        format: yaml
+        url: https://github.com/legiz-ru/mihomo-rule-sets/raw/main/other/games-direct.yaml
+        path: ./rule-providers/legiz-games-direct.yaml
+        interval: 21600
+      legiz-ru-app-list:
+        type: http
+        behavior: classical
+        format: yaml
+        url: https://github.com/legiz-ru/mihomo-rule-sets/raw/main/other/ru-app-list.yaml
+        path: ./rule-providers/legiz-ru-app-list.yaml
+        interval: 21600
+      russia-fancy-geoblock:
+        type: http
+        behavior: domain
+        format: yaml
+        url: https://raw.githubusercontent.com/Noktomezo/RussiaFancyLists/main/lists/geoblock-mihomo/full-sld.yaml
+        path: ./rule-providers/russia-fancy-geoblock.yaml
+        interval: 21600
+    rules:
+      - RULE-SET,runetfreedom-private-ip,DIRECT
+      - RULE-SET,legiz-games-direct,DIRECT
+      - RULE-SET,legiz-ru-app-list,DIRECT
+      - RULE-SET,russia-fancy-geoblock,PROXY
+      - DOMAIN-SUFFIX,ru,DIRECT
+      - DOMAIN-SUFFIX,xn--p1ai,DIRECT
+      - RULE-SET,runetfreedom-ru-ip,DIRECT
+      - MATCH,PROXY
   subEnableRouting: false
   subDomain: ""
   subCertFile: ""

@@ -18,6 +18,21 @@
   vars:
     xui_config_phase: plan
 
+- name: Apply inbound changes
+  ansible.builtin.include_tasks: inbounds.yaml
+  vars:
+    xui_config_phase: apply
+  when:
+    - not ansible_check_mode
+    - xui_managed_inbound_changes | length > 0
+
+- name: Verify inbound changes
+  ansible.builtin.include_tasks: inbounds.yaml
+  vars:
+    xui_config_phase: verify
+  when:
+    - not ansible_check_mode
+
 - name: Check for a pending restart
   ansible.builtin.stat:
     path: /etc/x-ui/ansible-config-restart-pending

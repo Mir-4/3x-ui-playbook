@@ -73,9 +73,15 @@
       - item.tag | default(none) is string
       - item.listen | default(none) is string
       - item.port | default(none) is number
-      - item.settings | default(none) is string
-      - item.streamSettings | default(none) is string
-      - item.sniffing | default(none) is string
+      - >-
+        item.settings | default(none) is mapping or
+        item.settings | default(none) is string
+      - >-
+        item.streamSettings | default(none) is mapping or
+        item.streamSettings | default(none) is string
+      - >-
+        item.sniffing | default(none) is mapping or
+        item.sniffing | default(none) is string
     fail_msg: The inbound API returned an unsupported record shape.
   loop: "{{ xui_inbounds_response.json.obj }}"
   loop_control:
@@ -86,14 +92,26 @@
   ansible.builtin.set_fact:
     xui_discovered_inbounds: []
 
-- name: Decode inbound JSON fields
+- name: Normalize inbound structured fields
   ansible.builtin.set_fact:
     xui_discovered_inbounds: >-
       {{ xui_discovered_inbounds
          + [item | combine({
-           'settings': item.settings | from_json,
-           'streamSettings': item.streamSettings | from_json,
-           'sniffing': item.sniffing | from_json
+           'settings': (
+             item.settings
+             if item.settings is mapping
+             else item.settings | from_json
+           ),
+           'streamSettings': (
+             item.streamSettings
+             if item.streamSettings is mapping
+             else item.streamSettings | from_json
+           ),
+           'sniffing': (
+             item.sniffing
+             if item.sniffing is mapping
+             else item.sniffing | from_json
+           )
          })] }}
   loop: "{{ xui_inbounds_response.json.obj }}"
   loop_control:

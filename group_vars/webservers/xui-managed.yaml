@@ -47,6 +47,12 @@ xui_managed_settings:
         url: https://github.com/legiz-ru/mihomo-rule-sets/raw/main/other/games-direct.yaml
         path: ./rule-providers/legiz-games-direct.yaml
         interval: 21600
+      linux-games-direct:
+        type: inline
+        behavior: classical
+        payload:
+          - PROCESS-NAME,cs2
+          - PROCESS-NAME,dota2
       legiz-ru-app-list:
         type: http
         behavior: classical
@@ -63,6 +69,7 @@ xui_managed_settings:
         interval: 21600
     rules:
       - RULE-SET,runetfreedom-private-ip,DIRECT
+      - RULE-SET,linux-games-direct,DIRECT
       - RULE-SET,legiz-games-direct,DIRECT
       - RULE-SET,legiz-ru-app-list,DIRECT
       - RULE-SET,russia-fancy-geoblock,PROXY
